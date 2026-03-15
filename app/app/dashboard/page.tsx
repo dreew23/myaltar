@@ -216,6 +216,11 @@ export default async function DashboardPage() {
     }
   }
 
+  const safeIntercession = {
+    theme: todayIntercession?.theme ?? "Today",
+    focus: Array.isArray(todayIntercession?.focus) ? todayIntercession.focus : [],
+  }
+
   return (
     <DashboardClient
       prayerStreak={prayerStreak}
@@ -231,7 +236,7 @@ export default async function DashboardPage() {
       weeklySermonsList={weeklySermonsList}
       weeklyGoals={weeklyGoalsForDisplay}
       weekStartStr={startOfWeekStr}
-      todayIntercession={todayIntercession}
+      todayIntercession={safeIntercession}
     />
   )
 }

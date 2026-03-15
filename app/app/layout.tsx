@@ -13,7 +13,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .from("profiles")
     .select("*")
     .eq("id", user.id)
-    .single()
+    .maybeSingle()
 
   return (
     <AppShell

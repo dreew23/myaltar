@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { X, Plus, Trash2 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -58,6 +58,51 @@ export function ActivityForm({ open, onOpenChange, activity, existingSubChalleng
     })) ?? []
   )
   const [saving, setSaving] = useState(false)
+
+  // When opening for edit, prefill form from activity (useState init only runs on mount)
+  useEffect(() => {
+    if (!open) return
+    if (activity) {
+      setTitle(activity.title ?? "")
+      setType(activity.type ?? "fellowship")
+      setOrganizer(activity.organizer ?? "")
+      setDescription(activity.description ?? "")
+      setIsRecurring(activity.is_recurring ?? false)
+      setStartDate(activity.start_date ?? "")
+      setEndDate(activity.end_date ?? "")
+      setRecurrencePreset(activity.recurrence_pattern ?? "weekly_sunday")
+      setCustomDays(
+        activity.recurrence_pattern?.startsWith("custom:")
+          ? activity.recurrence_pattern.replace("custom:", "").split(",").map(Number)
+          : []
+      )
+      setTagsInput(activity.tags?.join(", ") ?? "")
+      setResources(activity.books_resources ?? [])
+      setSubChallenges(
+        existingSubChallenges?.map((sc) => ({
+          id: sc.id,
+          title: sc.title,
+          description: sc.description ?? "",
+          target_type: sc.target_type,
+          target_value: sc.target_value,
+          target_unit: sc.target_unit ?? "",
+        })) ?? []
+      )
+    } else {
+      setTitle("")
+      setType("fellowship")
+      setOrganizer("")
+      setDescription("")
+      setIsRecurring(false)
+      setStartDate("")
+      setEndDate("")
+      setRecurrencePreset("weekly_sunday")
+      setCustomDays([])
+      setTagsInput("")
+      setResources([])
+      setSubChallenges([])
+    }
+  }, [open, activity, existingSubChallenges])
 
   const recurrencePattern = recurrencePreset === "custom"
     ? `custom:${customDays.sort().join(",")}`
