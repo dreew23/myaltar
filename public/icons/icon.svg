@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="altar-icon-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#A7C2D7"/>
+      <stop offset="100%" stop-color="#F9D57E"/>
+    </linearGradient>
+  </defs>
+  <path
+    d="M16 2 C20 6, 24 10, 24 16 C24 22, 20 26, 16 26 C12 26, 8 22, 8 16 C8 10, 12 6, 16 2 Z"
+    fill="url(#altar-icon-gradient)"
+    opacity="0.9"
+  />
+  <path
+    d="M16 6 C18 8, 20 10, 20 14 C20 18, 18 20, 16 20 C14 20, 12 18, 12 14 C12 10, 14 8, 16 6 Z"
+    fill="#FFFFFF"
+    opacity="0.8"
+  />
+  <circle cx="16" cy="14" r="2" fill="url(#altar-icon-gradient)"/>
+</svg>
