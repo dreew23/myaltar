@@ -24,6 +24,8 @@ interface Phase6CloseProps {
   onSessionQualityChange: (n: number) => void
   onCompleteSession: () => void
   completing: boolean
+  /** When true, primary action saves edits without changing completion time. */
+  sessionAlreadyComplete?: boolean
 }
 
 export function Phase6Close({
@@ -38,6 +40,7 @@ export function Phase6Close({
   onSessionQualityChange,
   onCompleteSession,
   completing,
+  sessionAlreadyComplete = false,
 }: Phase6CloseProps) {
   const [checklist, setChecklist] = useState<Record<number, boolean>>({})
   const [prayerOpen, setPrayerOpen] = useState(true)
@@ -112,7 +115,7 @@ export function Phase6Close({
         disabled={completing}
         className="w-full py-4 rounded-xl bg-[#F9D57E] hover:bg-[#F9D57E]/90 text-[#3C1E38] font-playfair font-bold text-lg border-2 border-[#3C1E38]/20 disabled:opacity-50"
       >
-        {completing ? "Completing…" : "Complete Session"}
+        {completing ? "Saving…" : sessionAlreadyComplete ? "Save updates" : "Complete Session"}
       </button>
     </div>
   )

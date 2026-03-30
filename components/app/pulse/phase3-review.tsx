@@ -28,6 +28,8 @@ interface Phase3ReviewProps {
   userId: string
   quarterCode: string
   weekNumber: number
+  /** Calendar date for this pulse session (pulse_checks.date). */
+  pulseCheckDate: string
   onSavePulseCheck: (data: Record<string, unknown>) => Promise<string | null>
 }
 
@@ -38,6 +40,7 @@ export function Phase3Review({
   existingPulseCheck,
   quarterCode,
   weekNumber,
+  pulseCheckDate,
   onSavePulseCheck,
 }: Phase3ReviewProps) {
   const [answers, setAnswers] = useState<Record<string, PulseAnswer>>(() => {
@@ -72,7 +75,7 @@ export function Phase3Review({
     setSaving(true)
     const row: Record<string, unknown> = {
       week_number: weekNumber,
-      date: new Date().toISOString().split("T")[0],
+      date: pulseCheckDate,
       quarter_code: quarterCode,
       overall_reflection: overallReflection || null,
       g3_dominion: dominionScore,

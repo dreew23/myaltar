@@ -14,7 +14,10 @@ type DevotionRow = {
 
 interface Phase2MeasureProps {
   sevenDaysAgoStr: string
-  todayStr: string
+  /** End of the 7-day audit window (session calendar date). */
+  windowEndStr: string
+  /** Real “today” for labeling when it matches window end. */
+  calendarTodayStr: string
   weekDevotions: DevotionRow[]
   prayerSessionDates: string[]
   declarationLogsSummary: { daysAllMet: number; totalDays: number }
@@ -23,18 +26,29 @@ interface Phase2MeasureProps {
   onBackfillDay: (date: string, data: Record<string, unknown>) => Promise<void>
 }
 
-function buildDays(sevenDaysAgoStr: string, todayStr: string, devotionsByDate: Map<string, DevotionRow>): { date: string; dayLabel: string; isToday: boolean; prayer_complete?: boolean; declarations_complete?: boolean; gratitude_complete?: boolean; sermons_today?: number; energy_score?: number }[] {
+function buildDays(
+  sevenDaysAgoStr: string,
+  windowEndStr: string,
+  calendarTodayStr: string,
+  devotionsByDate: Map<string, DevotionRow>
+): { date: string; dayLabel: string; isToday: boolean; prayer_complete?: boolean; declarations_complete?: boolean; gratitude_complete?: boolean; sermons_today?: number; energy_score?: number }[] {
   const out: { date: string; dayLabel: string; isToday: boolean; prayer_complete?: boolean; declarations_complete?: boolean; gratitude_complete?: boolean; sermons_today?: number; energy_score?: number }[] = []
   const start = new Date(sevenDaysAgoStr + "T12:00:00")
-  const end = new Date(todayStr + "T12:00:00")
+  const end = new Date(windowEndStr + "T12:00:00")
   for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    const dateStr = d.toISOString().split("T")[0]
-    const isToday = dateStr === todayStr
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+    const isSessionDay = dateStr === windowEndStr
+    const dayLabel =
+      isSessionDay && windowEndStr === calendarTodayStr
+        ? "Today"
+        : isSessionDay
+          ? "Session day"
+          : d.toLocaleDateString("en-US", { weekday: "short" })
     const dev = devotionsByDate.get(dateStr)
     out.push({
       date: dateStr,
-      dayLabel: isToday ? "Today" : d.toLocaleDateString("en-US", { weekday: "short" }),
-      isToday,
+      dayLabel,
+      isToday: isSessionDay,
       prayer_complete: dev?.prayer_complete,
       declarations_complete: dev?.declarations_complete,
       gratitude_complete: dev?.gratitude_complete,
@@ -47,7 +61,8 @@ function buildDays(sevenDaysAgoStr: string, todayStr: string, devotionsByDate: M
 
 export function Phase2Measure({
   sevenDaysAgoStr,
-  todayStr,
+  windowEndStr,
+  calendarTodayStr,
   weekDevotions,
   prayerSessionDates,
   declarationLogsSummary,
@@ -62,8 +77,8 @@ export function Phase2Measure({
   }, [weekDevotions])
 
   const days = useMemo(
-    () => buildDays(sevenDaysAgoStr, todayStr, devotionsByDate),
-    [sevenDaysAgoStr, todayStr, devotionsByDate]
+    () => buildDays(sevenDaysAgoStr, windowEndStr, calendarTodayStr, devotionsByDate),
+    [sevenDaysAgoStr, windowEndStr, calendarTodayStr, devotionsByDate]
   )
 
   return (
