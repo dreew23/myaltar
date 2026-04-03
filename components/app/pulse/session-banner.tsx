@@ -8,6 +8,8 @@ interface SessionBannerProps {
   isSunday: boolean
   weekNumber: number
   quarterName: string
+  /** When set, replaces the single “Week … — phase” line with dual personal + calendar context. */
+  dualContextLine?: string
   hasSession: boolean
   sessionComplete: boolean
   onBegin: () => void
@@ -17,6 +19,7 @@ export function SessionBanner({
   isSunday,
   weekNumber,
   quarterName,
+  dualContextLine,
   hasSession,
   sessionComplete,
   onBegin,
@@ -41,7 +44,15 @@ export function SessionBanner({
             </h1>
             <p className="text-[#3C1E38]/70 mt-1">Your weekly rhythm of review, reflection, and planning</p>
             <p className="text-sm text-[#3C1E38]/60 mt-2">
-              {new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} · Week {weekNumber} of 13 — {quarterName}
+              {dualContextLine ? (
+                <>
+                  {new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} · {dualContextLine}
+                </>
+              ) : (
+                <>
+                  {new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} · Week {weekNumber} of 13 — {quarterName}
+                </>
+              )}
             </p>
           </div>
           <div className="flex-shrink-0">
@@ -74,7 +85,9 @@ export function SessionBanner({
             Your Sunday planning session
           </h1>
           <p className="text-[#3C1E38]/60 mt-1">Next session: {nextSunday} at 2pm</p>
-          <p className="text-sm text-[#3C1E38]/50 mt-1">Week {weekNumber} of 13 — {quarterName}</p>
+          <p className="text-sm text-[#3C1E38]/50 mt-1">
+            {dualContextLine ?? `Week ${weekNumber} of 13 — ${quarterName}`}
+          </p>
         </div>
         <Button onClick={onBegin} variant="outline" className="border-[#A7C2D7]/40 text-[#3C1E38]">
           Start session anyway

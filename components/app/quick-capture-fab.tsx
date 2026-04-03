@@ -1,10 +1,16 @@
 "use client"
 
 import { useState } from "react"
+import dynamic from "next/dynamic"
 import { Plus, Sparkles, BookOpen } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { QuickCaptureForm } from "@/app/app/downloads/downloads-client"
 import { useRouter } from "next/navigation"
+
+/** Load lazily so /app routes don’t pull the full downloads page bundle on first paint. */
+const QuickCaptureForm = dynamic(
+  () => import("@/app/app/downloads/downloads-client").then((m) => m.QuickCaptureForm),
+  { ssr: false, loading: () => <p className="text-sm text-[#3C1E38]/60 py-4">Loading form…</p> }
+)
 
 interface Props {
   userId: string

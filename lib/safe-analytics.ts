@@ -1,5 +1,4 @@
-"use client"
-
+// Shared analytics helpers (no hooks). Safe when called from client; no-op on server.
 // Enhanced safe analytics wrapper with extension conflict protection
 declare global {
   interface Window {

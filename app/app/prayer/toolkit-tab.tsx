@@ -1,17 +1,24 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import Link from "next/link"
 import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { createClient } from "@/lib/supabase/client"
 import {
   SAVED_PRAYER_CATEGORIES,
   WARFARE_CATEGORIES,
+  type PrayerChallengeRow,
   type SavedPrayer,
   type WarfareScripture,
 } from "@/lib/prayer"
 import { prayerAreas } from "@/lib/data/dominion"
+import { mondayDateString } from "@/lib/prayer-week"
+import type { IntercessionDayRow } from "@/components/app/settings/intercession-editor"
+
+const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
 interface Props {
   savedPrayers: SavedPrayer[]
@@ -19,6 +26,9 @@ interface Props {
   userId: string
   onSavedPrayersUpdate: (p: SavedPrayer[]) => void
   onWarfareUpdate: (w: WarfareScripture[]) => void
+  intercessionSchedule: IntercessionDayRow[] | null
+  challenges: PrayerChallengeRow[]
+  onChallengesUpdate: (rows: PrayerChallengeRow[]) => void
 }
 
 export function ToolkitTab({
@@ -27,14 +37,50 @@ export function ToolkitTab({
   userId,
   onSavedPrayersUpdate,
   onWarfareUpdate,
+  intercessionSchedule,
+  challenges,
+  onChallengesUpdate,
 }: Props) {
   const [prayerFilter, setPrayerFilter] = useState<string>("all")
   const [prayerFormOpen, setPrayerFormOpen] = useState(false)
   const [warfareFormOpen, setWarfareFormOpen] = useState(false)
   const [prayNowPrayer, setPrayNowPrayer] = useState<SavedPrayer | null>(null)
   const [prayNowWarfare, setPrayNowWarfare] = useState<WarfareScripture | null>(null)
+  const [challengeRows, setChallengeRows] = useState(challenges)
+
+  useEffect(() => {
+    setChallengeRows(challenges)
+  }, [challenges])
 
   const supabase = createClient()
+  const schedule =
+    intercessionSchedule && intercessionSchedule.length === 7
+      ? [...intercessionSchedule].sort((a, b) => a.day_of_week - b.day_of_week)
+      : null
+
+  const bumpChallenge = async (c: PrayerChallengeRow, delta: number) => {
+    const mon = mondayDateString()
+    let base = c
+    if (c.week_start_monday !== mon) {
+      await supabase.from("prayer_challenges").update({ weekly_progress: 0, week_start_monday: mon }).eq("id", c.id)
+      base = { ...c, weekly_progress: 0, week_start_monday: mon }
+    }
+    const next = Math.max(0, base.weekly_progress + delta)
+    const { data } = await supabase
+      .from("prayer_challenges")
+      .update({ weekly_progress: next, week_start_monday: mon })
+      .eq("id", c.id)
+      .select()
+      .single()
+    if (data) {
+      const row = data as PrayerChallengeRow
+      setChallengeRows((prev) => {
+        const u = prev.map((x) => (x.id === c.id ? row : x))
+        onChallengesUpdate(u)
+        return u
+      })
+    }
+  }
   const filteredPrayers = prayerFilter === "all"
     ? savedPrayers
     : savedPrayers.filter((p) => p.category === prayerFilter)
@@ -59,13 +105,32 @@ export function ToolkitTab({
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div>
-        <h1 className="font-playfair text-2xl font-bold text-[#3C1E38]">Prayer Toolkit</h1>
-        <p className="text-[#3C1E38]/50 text-sm mt-1">Saved prayers, warfare scriptures, and rotation reference</p>
+        <h1 className="font-prayer-display text-2xl font-semibold text-[#2c2419]">Toolkit</h1>
+        <p className="mt-1 text-sm text-[#2c2419]/55">Saved prayers, warfare, framework, intercession, challenges</p>
       </div>
 
-      {/* Saved Prayers */}
+      <Tabs defaultValue="saved" className="space-y-4">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 bg-[#ede9e0] p-1 sm:grid-cols-5">
+          <TabsTrigger value="saved" className="text-xs sm:text-sm">
+            Saved Prayers
+          </TabsTrigger>
+          <TabsTrigger value="warfare" className="text-xs sm:text-sm">
+            Warfare
+          </TabsTrigger>
+          <TabsTrigger value="framework" className="text-xs sm:text-sm">
+            Framework
+          </TabsTrigger>
+          <TabsTrigger value="intercession" className="text-xs sm:text-sm">
+            Intercession
+          </TabsTrigger>
+          <TabsTrigger value="challenges" className="text-xs sm:text-sm">
+            Challenges
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="saved" className="mt-4">
       <section>
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-playfair text-lg text-[#3C1E38]">My Prayer Collection</h2>
@@ -131,8 +196,9 @@ export function ToolkitTab({
           )}
         </div>
       </section>
+        </TabsContent>
 
-      {/* Warfare Scriptures */}
+        <TabsContent value="warfare" className="mt-4">
       <section>
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-playfair text-lg text-[#3C1E38]">Warfare Arsenal</h2>
@@ -177,18 +243,121 @@ export function ToolkitTab({
           )}
         </div>
       </section>
+        </TabsContent>
 
-      {/* 10-Area Rotation Reference */}
-      <section className="bg-[#FDFCF9] rounded-2xl border border-[#A7C2D7]/20 p-6">
-        <h2 className="font-playfair text-lg text-[#3C1E38] mb-4">10-Area Prayer Rotation</h2>
-        <p className="text-sm text-[#3C1E38]/70 mb-4">
-          This rotation ensures every area of your DOMINION journey receives focused prayer attention each week.
-        </p>
-        <div className="grid gap-2 text-sm">
+        <TabsContent value="framework" className="mt-4">
+          <section className="rounded-2xl border border-[var(--prayer-border)] bg-[#faf8f4] p-4">
+            <h2 className="font-prayer-display mb-3 text-lg text-[#b8860b]">Weekly framework</h2>
+            <p className="mb-4 text-sm text-[#2c2419]/70">
+              Seven columns — life areas assigned per day. Edit in Settings for full control.
+            </p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7 max-[600px]:grid-cols-2">
+              {DAY_LABELS.map((label, i) => {
+                const row = schedule?.find((r) => r.day_of_week === i)
+                const isToday = new Date().getDay() === i
+                return (
+                  <div
+                    key={label}
+                    className={`min-h-[100px] rounded-xl border p-2 text-xs ${
+                      isToday ? "border-[#d4a017] bg-[#f5f2ec]" : "border-[var(--prayer-border)] bg-white"
+                    }`}
+                  >
+                    <p className="font-medium text-[#2c2419]">{label}</p>
+                    <p className="mt-1 line-clamp-3 text-[#2c2419]/70">
+                      {(row?.life_areas ?? []).join(", ") || "—"}
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
+            <Link href="/app/settings#intercession-schedule" className="mt-4 inline-block text-sm text-[#2471a3] underline">
+              Edit rotation in Settings →
+            </Link>
+          </section>
+        </TabsContent>
+
+        <TabsContent value="intercession" className="mt-4">
+          <section className="space-y-3">
+            <p className="text-sm text-[#2c2419]/70">
+              Daily themes and people power the gold focus card in Prayer Mode. Edit below in Settings.
+            </p>
+            {schedule?.map((row) => {
+              const isToday = new Date().getDay() === row.day_of_week
+              return (
+                <div
+                  key={row.day_of_week}
+                  className={`rounded-xl border p-4 ${isToday ? "border-[#d4a017] bg-[#f5f2ec]" : "border-[var(--prayer-border)] bg-white"}`}
+                >
+                  <p className="font-prayer-display text-lg italic text-[#b8860b]">{DAY_LABELS[row.day_of_week]}</p>
+                  <p className="mt-1 font-medium">{row.theme}</p>
+                  <p className="mt-2 text-sm text-[#2c2419]/80">People: {(row.people ?? []).join(", ") || "—"}</p>
+                  <p className="mt-1 text-sm text-[#2c2419]/70">Areas: {(row.life_areas ?? []).join(", ") || "—"}</p>
+                </div>
+              )
+            })}
+            {!schedule && (
+              <p className="text-sm text-[#2c2419]/50">No 7-day schedule yet — set it in Settings.</p>
+            )}
+            <Link href="/app/settings#intercession-schedule" className="inline-block text-sm font-medium text-[#2471a3] underline">
+              Open Intercession Schedule →
+            </Link>
+          </section>
+        </TabsContent>
+
+        <TabsContent value="challenges" className="mt-4">
+          <section className="rounded-2xl border border-[var(--prayer-border)] bg-[#f5f2ec] p-4">
+            <h2 className="font-prayer-display text-lg text-[#b8860b]">Weekly challenges</h2>
+            <p className="mt-1 text-sm text-[#2c2419]/65">Cumulative progress this week (resets each Monday).</p>
+            <div className="mt-4 space-y-3">
+              {challengeRows.length === 0 ? (
+                <p className="text-sm text-[#2c2419]/50">No challenges — defaults are created when you run the latest migration.</p>
+              ) : (
+                challengeRows.map((c) => {
+                  const target = c.daily_target * 7
+                  const pct = Math.min(100, (c.weekly_progress / Math.max(1, target)) * 100)
+                  return (
+                    <div key={c.id} className="rounded-xl border border-[var(--prayer-border)] bg-white p-3">
+                      <div className="mb-1 flex justify-between text-sm">
+                        <span>{c.label}</span>
+                        <span className="text-[#b8860b]">
+                          {c.weekly_progress}/{target} {c.unit}
+                        </span>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-[#ede9e0]">
+                        <div className="h-full bg-[#d4a017]" style={{ width: `${pct}%` }} />
+                      </div>
+                      <div className="mt-2 flex gap-2">
+                        <button
+                          type="button"
+                          className="rounded border px-2 text-xs"
+                          onClick={() => void bumpChallenge(c, -1)}
+                        >
+                          −
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded border px-2 text-xs"
+                          onClick={() => void bumpChallenge(c, 1)}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </section>
+        </TabsContent>
+      </Tabs>
+
+      <section className="rounded-2xl border border-[var(--prayer-border)] bg-white p-4">
+        <h2 className="font-prayer-display text-lg text-[#2c2419]">10-area reference</h2>
+        <div className="mt-2 grid gap-1 text-sm text-[#2c2419]/80">
           {prayerAreas.map((area, i) => (
-            <div key={area} className="flex items-center gap-2">
-              <span className="text-[#3C1E38]/50 w-6">{i + 1}.</span>
-              <span className="text-[#3C1E38]">{area}</span>
+            <div key={area} className="flex gap-2">
+              <span className="w-6 text-[#2c2419]/40">{i + 1}.</span>
+              <span>{area}</span>
             </div>
           ))}
         </div>

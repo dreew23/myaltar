@@ -31,6 +31,8 @@ interface Phase3ReviewProps {
   /** Calendar date for this pulse session (pulse_checks.date). */
   pulseCheckDate: string
   onSavePulseCheck: (data: Record<string, unknown>) => Promise<string | null>
+  /** Personal + calendar rhythm (UI only; storage still uses calendar quarter_code / week_number). */
+  dualContextLine?: string
 }
 
 export function Phase3Review({
@@ -42,6 +44,7 @@ export function Phase3Review({
   weekNumber,
   pulseCheckDate,
   onSavePulseCheck,
+  dualContextLine,
 }: Phase3ReviewProps) {
   const [answers, setAnswers] = useState<Record<string, PulseAnswer>>(() => {
     const initial: Record<string, PulseAnswer> = {}
@@ -97,6 +100,9 @@ export function Phase3Review({
   return (
     <div className="space-y-6">
       <p className="text-sm text-[#3C1E38]/70">Assess how the week went across all 7 goals. Score from data.</p>
+      {dualContextLine && (
+        <p className="text-xs text-[#3C1E38]/55 leading-relaxed">{dualContextLine}</p>
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <StatCard label="Prayer" value={`${weekStats.prayerDays}/7 days`} />

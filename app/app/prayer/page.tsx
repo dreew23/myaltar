@@ -1,6 +1,9 @@
 import { createClient } from "@/lib/supabase/server"
 import { getTodayIntercessionForUser } from "@/lib/data/user-config"
+import { mondayDateString } from "@/lib/prayer-week"
 import { PrayerClient } from "./prayer-client"
+import type { IntercessionDayRow } from "@/components/app/settings/intercession-editor"
+import type { PrayerChallengeRow } from "@/lib/prayer"
 
 export const metadata = { title: "Prayer | ALTAR" }
 
@@ -19,65 +22,53 @@ export default async function PrayerPage() {
   let requestsRes = { data: [] as unknown[] }
   let declarationsRes = { data: [] as unknown[] }
   let declarationLogsRes = { data: [] as unknown[] }
-  let todayDevotionRes = { data: null as { prayer_complete?: boolean } | null }
+  let intercessionScheduleRows: IntercessionDayRow[] | null = null
+  let challengesList: PrayerChallengeRow[] = []
+  let prayEventsList: { request_id: string; prayed_date: string }[] = []
 
   try {
-    const [
-      s,
-      t,
-      sp,
-      w,
-      r,
-      d,
-      dl,
-      td,
-    ] = await Promise.all([
-    supabase
-      .from("prayer_sessions")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("date", { ascending: false })
-      .limit(60),
-    supabase
-      .from("prayer_sessions")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("date", todayStr)
-      .maybeSingle(),
-    supabase
-      .from("saved_prayers")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("active", true)
-      .order("display_order", { ascending: true }),
-    supabase
-      .from("warfare_scriptures")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("display_order", { ascending: true }),
-    supabase
-      .from("prayer_requests")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("declarations")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("active", true)
-      .order("display_order", { ascending: true }),
-    supabase
-      .from("declaration_logs")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("date", todayStr),
-    supabase
-      .from("daily_devotions")
-      .select("prayer_complete")
-      .eq("user_id", user.id)
-      .eq("date", todayStr)
-      .maybeSingle(),
-  ])
+    const [s, t, sp, w, r, d, dl] = await Promise.all([
+      supabase
+        .from("prayer_sessions")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("date", { ascending: false })
+        .limit(60),
+      supabase
+        .from("prayer_sessions")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("date", todayStr)
+        .eq("session_type", "morning")
+        .maybeSingle(),
+      supabase
+        .from("saved_prayers")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("active", true)
+        .order("display_order", { ascending: true }),
+      supabase
+        .from("warfare_scriptures")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("display_order", { ascending: true }),
+      supabase
+        .from("prayer_requests")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("declarations")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("active", true)
+        .order("display_order", { ascending: true }),
+      supabase
+        .from("declaration_logs")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("date", todayStr),
+    ])
     sessionsRes = s
     todaySessionRes = t
     savedPrayersRes = sp
@@ -85,22 +76,68 @@ export default async function PrayerPage() {
     requestsRes = r
     declarationsRes = d
     declarationLogsRes = dl
-    todayDevotionRes = td
   } catch {
-    // Tables may not exist yet — run supabase/migrations/20250315_prayer_tables.sql
+    // Core prayer tables missing
   }
 
-  let activities: { id: string; title: string; [key: string]: unknown }[] = []
   try {
-    const { data } = await supabase
-      .from("spiritual_activities")
-      .select("id, title")
+    const { data: sched } = await supabase
+      .from("intercession_schedule")
+      .select("day_of_week, theme, people, life_areas")
       .eq("user_id", user.id)
-      .eq("active", true)
-    activities = data ?? []
+      .order("day_of_week")
+    const rows = sched as IntercessionDayRow[] | null
+    intercessionScheduleRows = rows && rows.length === 7 ? rows : null
   } catch {
-    // Table may not exist
+    /* optional */
   }
+
+  try {
+    const { data: ch } = await supabase.from("prayer_challenges").select("*").eq("user_id", user.id).order("display_order")
+    challengesList = (ch ?? []) as PrayerChallengeRow[]
+  } catch {
+    /* optional */
+  }
+
+  try {
+    const { data: pe } = await supabase
+      .from("prayer_request_pray_events")
+      .select("request_id, prayed_date")
+      .eq("user_id", user.id)
+    prayEventsList = (pe ?? []) as { request_id: string; prayed_date: string }[]
+  } catch {
+    /* optional */
+  }
+
+  if (challengesList.length === 0) {
+    try {
+      const mon = mondayDateString()
+      await supabase.from("prayer_challenges").insert([
+        {
+          user_id: user.id,
+          label: "Communion",
+          daily_target: 3,
+          unit: "times",
+          weekly_progress: 0,
+          week_start_monday: mon,
+        },
+        {
+          user_id: user.id,
+          label: "Tongues",
+          daily_target: 60,
+          unit: "min",
+          weekly_progress: 0,
+          week_start_monday: mon,
+        },
+      ])
+      const { data: ch2 } = await supabase.from("prayer_challenges").select("*").eq("user_id", user.id)
+      challengesList = (ch2 ?? []) as PrayerChallengeRow[]
+    } catch {
+      /* table missing */
+    }
+  }
+
+  const scheduleComplete = (intercessionScheduleRows?.length ?? 0) === 7
 
   return (
     <PrayerClient
@@ -109,12 +146,14 @@ export default async function PrayerPage() {
       savedPrayers={savedPrayersRes.data ?? []}
       warfareScriptures={warfareRes.data ?? []}
       prayerRequests={requestsRes.data ?? []}
+      prayEvents={prayEventsList}
       declarations={declarationsRes.data ?? []}
       todayDeclarationLogs={declarationLogsRes.data ?? []}
-      todayPrayerComplete={todayDevotionRes.data?.prayer_complete ?? false}
-      activities={activities}
       userId={user.id}
       todayIntercession={todayIntercession}
+      intercessionSchedule={intercessionScheduleRows}
+      scheduleComplete={scheduleComplete}
+      challenges={challengesList}
     />
   )
 }

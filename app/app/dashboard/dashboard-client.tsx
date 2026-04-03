@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
@@ -11,8 +11,10 @@ import { Button } from "@/components/ui/button"
 import { createClient } from "@/lib/supabase/client"
 import {
   getTodayVerse, getTodayDeclaration,
-  getTodayPrayerAreas, isSunday, getQuarterProgress,
+  getTodayPrayerAreas, isSunday,
 } from "@/lib/data/dominion"
+import { getPersonalYearProgress, getCalendarQuarterProgress } from "@/lib/personal-year"
+import type { PersonalYearConfigRow } from "@/lib/personal-year"
 import { QuickCaptureForm } from "@/app/app/downloads/downloads-client"
 
 interface WeeklyGoalsRow {
@@ -51,6 +53,7 @@ interface Props {
   weeklyGoals: WeeklyGoalsRow | null
   weekStartStr: string
   todayIntercession: { theme: string; focus: string[] }
+  personalYears: PersonalYearConfigRow[]
 }
 
 const GOAL_CODES = ["G1", "G2", "G3", "G4", "G5", "G6", "G7"] as const
@@ -61,14 +64,22 @@ export function DashboardClient({
   weeklyPrincipleSermonTitle, weeklySermonsList = [],
   weeklyGoals, weekStartStr,
   todayIntercession,
+  personalYears,
 }: Props) {
   const router = useRouter()
   const verse = getTodayVerse()
   const declaration = getTodayDeclaration()
   const intercession = todayIntercession
   const prayerAreas = getTodayPrayerAreas()
-  const quarter = getQuarterProgress()
+  const personal = useMemo(() => getPersonalYearProgress(personalYears), [personalYears])
+  const calendarQ = useMemo(() => getCalendarQuarterProgress(), [])
   const sunday = isSunday()
+
+  function formatBarDateRange(startStr: string, endStr: string) {
+    const a = new Date(startStr + "T12:00:00")
+    const b = new Date(endStr + "T12:00:00")
+    return `${a.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${b.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+  }
 
   const [showDeclarations, setShowDeclarations] = useState(false)
   const [log, setLog] = useState({
@@ -281,7 +292,9 @@ export function DashboardClient({
                     Session in progress — Phase {(todayPulseSession.phases_completed?.length ?? 0) + 1} of 6
                   </p>
                 ) : (
-                  <p className="text-xs text-[#3C1E38]/60">Week {quarter.weekInQuarter} of 13 — Time for your weekly review · Estimated: 2 hours</p>
+                  <p className="text-xs text-[#3C1E38]/60">
+                    Week {personal?.weekNumber ?? calendarQ.weekInQuarter} of 13 — Time for your weekly review · Estimated: 2 hours
+                  </p>
                 )}
               </div>
             </div>
@@ -561,17 +574,43 @@ export function DashboardClient({
             </Link>
           </div>
 
-          {/* Quarter Progress */}
-          <div className="bg-white rounded-xl p-4 border border-[#A7C2D7]/10">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-[#3C1E38]/50">Year {quarter.year}: {quarter.phaseName}</span>
-              <span className="text-xs font-medium text-[#3C1E38]">Week {quarter.weekInQuarter} of {quarter.totalWeeks}</span>
-            </div>
-            <div className="h-2 bg-[#A7C2D7]/10 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-[#A7C2D7] to-[#F9D57E] rounded-full transition-all"
-                style={{ width: `${(quarter.weekInQuarter / quarter.totalWeeks) * 100}%` }}
-              />
+          {/* Quarter progress: personal DOMINION year (primary) + calendar quarter (reference) */}
+          <div className="space-y-3">
+            {personal && (
+              <div className="bg-white rounded-xl p-4 border border-[#F9D57E]/25">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-sm font-medium text-[#3C1E38]">
+                    Year {personal.yearNumber}: {personal.yearName} — Week {personal.weekNumber} of {personal.totalWeeks}
+                  </span>
+                  <span className="text-xs font-medium text-[#F9D57E]">{personal.progress}%</span>
+                </div>
+                <div className="h-2.5 bg-[#F9D57E]/15 rounded-full overflow-hidden mb-1">
+                  <div
+                    className="h-full bg-[#F9D57E] rounded-full transition-all"
+                    style={{ width: `${personal.progress}%` }}
+                  />
+                </div>
+                <p className="text-[11px] text-[#3C1E38]/55">{formatBarDateRange(personal.startDate, personal.endDate)}</p>
+                {personal.yearTheme && (
+                  <p className="text-[10px] text-[#F9D57E] mt-0.5">{personal.yearTheme}</p>
+                )}
+              </div>
+            )}
+            <div className="bg-white rounded-xl p-3.5 border border-[#A7C2D7]/15 opacity-95">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs text-[#3C1E38]/50">
+                  Year {calendarQ.halfYearPhase}: {calendarQ.halfYearPhaseName} — Week {calendarQ.weekInQuarter} of {calendarQ.totalWeeks}
+                </span>
+                <span className="text-[10px] font-medium text-[#A7C2D7]">{calendarQ.labelShort}</span>
+              </div>
+              <div className="h-2 bg-[#A7C2D7]/10 rounded-full overflow-hidden mb-1">
+                <div
+                  className="h-full bg-[#A7C2D7] rounded-full transition-all"
+                  style={{ width: `${calendarQ.progress}%` }}
+                />
+              </div>
+              <p className="text-[11px] text-[#3C1E38]/45">{calendarQ.dateRangeLabel}</p>
+              <p className="text-[10px] text-[#A7C2D7] mt-0.5">Calendar Year</p>
             </div>
           </div>
         </div>

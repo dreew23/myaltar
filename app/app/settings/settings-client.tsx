@@ -13,12 +13,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import Link from "next/link"
 import { User as UserIcon, Settings, Bell, Shield, LogOut, Trash2, Check, Loader2, Lock, ArrowRight, Smartphone } from "lucide-react"
 import { SectionCard } from "@/components/app/settings/section-card"
+import { PersonalYearConfig } from "@/components/app/settings/personal-year-config"
 import { QuarterConfig } from "@/components/app/settings/quarter-config"
 import { IntercessionEditor } from "@/components/app/settings/intercession-editor"
 import { GoalEditor } from "@/components/app/settings/goal-editor"
 import { NotificationsSection } from "@/components/app/settings/notifications-section"
 import { DataManagement } from "@/components/app/settings/data-management"
 import type { QuarterRow } from "@/components/app/settings/quarter-config"
+import type { PersonalYearConfigRow } from "@/lib/personal-year"
 import type { IntercessionDayRow } from "@/components/app/settings/intercession-editor"
 import type { GoalRow } from "@/components/app/settings/goal-editor"
 import type { NotificationPrefs } from "@/components/app/settings/notifications-section"
@@ -34,6 +36,7 @@ interface Profile {
 interface SettingsClientProps {
   user: User
   profile: Profile | null
+  personalYears: PersonalYearConfigRow[]
   quarters: QuarterRow[]
   intercessionSchedule: IntercessionDayRow[] | null
   goals: GoalRow[] | null
@@ -63,7 +66,8 @@ const SECTIONS = [
   { id: "profile", label: "Profile" },
   { id: "dominion-rhythm", label: "DOMINION Rhythm" },
   { id: "primary-focus", label: "Primary Focus Area" },
-  { id: "quarter-config", label: "Quarter Configuration" },
+  { id: "personal-year-config", label: "Personal Year" },
+  { id: "quarter-config", label: "System Calendar" },
   { id: "intercession-schedule", label: "Intercession Schedule" },
   { id: "goal-config", label: "Goal Configuration" },
   { id: "notifications", label: "Notifications" },
@@ -74,6 +78,7 @@ const SECTIONS = [
 export default function SettingsClient({
   user,
   profile,
+  personalYears,
   quarters,
   intercessionSchedule,
   goals,
@@ -274,7 +279,10 @@ export default function SettingsClient({
           </Button>
         </div>
 
-        {/* 4. Quarter Configuration */}
+        {/* 4a. Personal year (DOMINION) */}
+        <PersonalYearConfig userId={user.id} initialRows={personalYears} onRowsChange={() => router.refresh()} />
+
+        {/* 4b. System calendar quarters */}
         <QuarterConfig userId={user.id} quarters={quarters} onQuartersChange={() => router.refresh()} />
 
         {/* 5. Intercession Schedule */}

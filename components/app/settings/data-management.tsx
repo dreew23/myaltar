@@ -49,7 +49,7 @@ export function DataManagement({
     try {
       const supabase = (await import("@/lib/supabase/client")).createClient()
       const tables = [
-        "quarter_config", "daily_devotions", "profiles", "declarations", "declaration_logs",
+        "quarter_config", "personal_year_config", "daily_devotions", "profiles", "declarations", "declaration_logs",
         "divine_downloads", "wisdom_entries", "aligned_decisions", "prayer_sessions", "prayer_requests",
         "prayers", "pulse_checks", "pulse_sessions", "goal_notes", "weekly_goals", "intercession_schedule", "goals", "daily_focus",
       ]

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, type ReactNode } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import {
@@ -24,7 +24,7 @@ const navItems = [
 ]
 
 interface AppShellProps {
-  children: React.ReactNode
+  children: ReactNode
   user: { id: string; email: string; displayName: string; avatarUrl?: string | null }
 }
 

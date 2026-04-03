@@ -1,5 +1,7 @@
 // DOMINION Spiritual Operating System - Core Data
 
+import { getLegacyQuarterProgressFromCalendar } from "@/lib/personal-year"
+
 export const dominionDeclarations = [
   "I am a son of God, chosen before the foundation of the world.",
   "I walk in divine wisdom that surpasses human understanding.",
@@ -186,21 +188,9 @@ export function isSunday() {
   return new Date().getDay() === 0
 }
 
+/** Calendar quarter + half-year labels (Jan–Jun vs Jul–Dec). See `getCalendarQuarterProgress` in `lib/personal-year.ts`. */
 export function getQuarterProgress() {
-  const now = new Date()
-  const yearStart = new Date(now.getFullYear(), 0, 1)
-  const dayOfYear = Math.floor((now.getTime() - yearStart.getTime()) / 86400000)
-  const quarter = Math.floor(dayOfYear / 91) + 1
-  const weekInQuarter = Math.floor((dayOfYear % 91) / 7) + 1
-  const year = quarter <= 2 ? 1 : 2 // Simplified year tracking
-  
-  return {
-    year,
-    quarter,
-    weekInQuarter,
-    totalWeeks: 13,
-    phaseName: year === 1 ? "Foundation & Habits" : "Momentum & Mastery",
-  }
+  return getLegacyQuarterProgressFromCalendar()
 }
 
 // Scripture verses (keeping from original)

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { GoalConfig } from "@/lib/data/dominion"
 import type { PulseSessionRow } from "@/lib/pulse"
+import type { PersonalYearConfigRow } from "@/lib/personal-year"
 import {
   getSevenDayWindow,
   getNextWeekFocusDatesFromSessionDate,
@@ -36,6 +37,7 @@ export type PulsePageData = {
   weekNumber: number
   quarterCode: string
   sevenDaysAgoStr: string
+  personalYears: PersonalYearConfigRow[]
 }
 
 export async function loadPulsePageData(
@@ -66,6 +68,20 @@ export async function loadPulsePageData(
   let declarations: PulsePageData["declarations"] = []
   let lastWeekTimeAnalysis: string | null = null
   let nextWeekDailyFocus: PulsePageData["nextWeekDailyFocus"] = []
+  let personalYears: PersonalYearConfigRow[] = []
+
+  async function fetchPersonalYears(): Promise<PersonalYearConfigRow[]> {
+    try {
+      const { data } = await supabase
+        .from("personal_year_config")
+        .select("*")
+        .eq("user_id", userId)
+        .order("year_number", { ascending: true })
+      return (data ?? []) as PersonalYearConfigRow[]
+    } catch {
+      return []
+    }
+  }
 
   async function fetchTodaySession() {
     const { data } = await supabase
@@ -198,7 +214,7 @@ export async function loadPulsePageData(
   }
 
   try {
-    const [sess, past, weekMatch, devotions, prayerSessions, downloads, declSummary, decls, lastTime, focusRows] =
+    const [sess, past, weekMatch, devotions, prayerSessions, downloads, declSummary, decls, lastTime, focusRows, py] =
       await Promise.all([
         fetchTodaySession(),
         fetchPastSessions(),
@@ -210,6 +226,7 @@ export async function loadPulsePageData(
         fetchDeclarations(),
         fetchLastWeekTimeAnalysis(),
         fetchNextWeekDailyFocus(),
+        fetchPersonalYears(),
       ])
     todaySession = sess
     pastSessions = past
@@ -221,10 +238,12 @@ export async function loadPulsePageData(
     declarations = decls
     lastWeekTimeAnalysis = lastTime
     nextWeekDailyFocus = focusRows as PulsePageData["nextWeekDailyFocus"]
+    personalYears = py
 
     thisWeekPulseCheck = await fetchPulseCheckForSession(todaySession)
   } catch {
     // Tables may not exist
+    personalYears = []
   }
 
   return {
@@ -245,5 +264,6 @@ export async function loadPulsePageData(
     weekNumber,
     quarterCode,
     sevenDaysAgoStr,
+    personalYears,
   }
 }

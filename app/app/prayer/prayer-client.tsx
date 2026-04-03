@@ -2,12 +2,14 @@
 
 import { useState } from "react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { PrayerModeTab } from "./prayer-mode-tab"
-import { JournalTab } from "./journal-tab"
+import { PrayerModeFlow } from "./prayer-mode-flow"
+import { PrayerJournalTab } from "./prayer-journal-tab"
 import { ToolkitTab } from "./toolkit-tab"
-import { RequestsTab } from "./requests-tab"
-import type { PrayerSession, SavedPrayer, WarfareScripture, PrayerRequest } from "@/lib/prayer"
+import { TrackerTab, type PrayEvent } from "./tracker-tab"
+import type { PrayerChallengeRow, PrayerSession, SavedPrayer, WarfareScripture, PrayerRequest } from "@/lib/prayer"
 import type { Declaration, DeclarationLog } from "@/components/app/declarations/types"
+import type { IntercessionDayRow } from "@/components/app/settings/intercession-editor"
+import type { TodayIntercession } from "@/lib/data/user-config"
 
 interface Props {
   sessions: PrayerSession[]
@@ -15,12 +17,14 @@ interface Props {
   savedPrayers: SavedPrayer[]
   warfareScriptures: WarfareScripture[]
   prayerRequests: PrayerRequest[]
+  prayEvents: PrayEvent[]
   declarations: Declaration[]
   todayDeclarationLogs: DeclarationLog[]
-  todayPrayerComplete: boolean
-  activities: { id: string; title: string; [key: string]: unknown }[]
   userId: string
-  todayIntercession: { theme: string; focus: string[] }
+  todayIntercession: TodayIntercession
+  intercessionSchedule: IntercessionDayRow[] | null
+  scheduleComplete: boolean
+  challenges: PrayerChallengeRow[]
 }
 
 export function PrayerClient({
@@ -29,45 +33,72 @@ export function PrayerClient({
   savedPrayers: initialSavedPrayers,
   warfareScriptures: initialWarfare,
   prayerRequests: initialRequests,
+  prayEvents: initialPrayEvents,
   declarations,
-  todayDeclarationLogs,
-  todayPrayerComplete,
-  activities,
+  todayDeclarationLogs: initialDeclLogs,
   userId,
   todayIntercession,
+  intercessionSchedule,
+  scheduleComplete,
+  challenges: initialChallenges,
 }: Props) {
   const [savedPrayers, setSavedPrayers] = useState(initialSavedPrayers)
   const [warfareScriptures, setWarfareScriptures] = useState(initialWarfare)
   const [prayerRequests, setPrayerRequests] = useState(initialRequests)
+  const [prayEvents] = useState(initialPrayEvents)
   const [sessionsList, setSessionsList] = useState(sessions)
+  const [declLogs, setDeclLogs] = useState(initialDeclLogs)
+  const [challenges, setChallenges] = useState(initialChallenges)
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="mx-auto max-w-4xl px-3 pb-12 pt-2">
+      <header className="prayer-glass sticky top-0 z-20 -mx-3 mb-4 px-3 py-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-baseline gap-2">
+            <span className="font-prayer-display text-2xl font-semibold tracking-tight text-[#b8860b]">ALTAR</span>
+            <span className="text-xs font-medium uppercase tracking-widest text-[#2c2419]/40">Prayer</span>
+          </div>
+        </div>
+      </header>
+
       <Tabs defaultValue="mode" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4 bg-[#A7C2D7]/10 border border-[#A7C2D7]/20 p-1 rounded-xl">
-          <TabsTrigger value="mode" className="rounded-lg data-[state=active]:bg-[#F9D57E]/30 data-[state=active]:text-[#3C1E38]">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 bg-[#ede9e0] p-1 sm:grid-cols-4">
+          <TabsTrigger
+            value="mode"
+            className="rounded-lg text-xs data-[state=active]:bg-[#faf8f4] data-[state=active]:text-[#b8860b] data-[state=active]:shadow-sm sm:text-sm"
+          >
             Prayer Mode
           </TabsTrigger>
-          <TabsTrigger value="journal" className="rounded-lg data-[state=active]:bg-[#F9D57E]/30 data-[state=active]:text-[#3C1E38]">
+          <TabsTrigger
+            value="journal"
+            className="rounded-lg text-xs data-[state=active]:bg-[#faf8f4] data-[state=active]:text-[#b8860b] data-[state=active]:shadow-sm sm:text-sm"
+          >
             Journal
           </TabsTrigger>
-          <TabsTrigger value="toolkit" className="rounded-lg data-[state=active]:bg-[#F9D57E]/30 data-[state=active]:text-[#3C1E38]">
-            Toolkit
+          <TabsTrigger
+            value="tracker"
+            className="rounded-lg text-xs data-[state=active]:bg-[#faf8f4] data-[state=active]:text-[#b8860b] data-[state=active]:shadow-sm sm:text-sm"
+          >
+            Tracker
           </TabsTrigger>
-          <TabsTrigger value="requests" className="rounded-lg data-[state=active]:bg-[#F9D57E]/30 data-[state=active]:text-[#3C1E38]">
-            Requests
+          <TabsTrigger
+            value="toolkit"
+            className="rounded-lg text-xs data-[state=active]:bg-[#faf8f4] data-[state=active]:text-[#b8860b] data-[state=active]:shadow-sm sm:text-sm"
+          >
+            Toolkit
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="mode" className="mt-4">
-          <PrayerModeTab
+          <PrayerModeFlow
+            sessions={sessionsList}
             todaySession={todaySession}
             declarations={declarations}
-            todayDeclarationLogs={todayDeclarationLogs}
-            todayPrayerComplete={todayPrayerComplete}
-            activities={activities}
+            todayDeclarationLogs={declLogs}
             userId={userId}
             todayIntercession={todayIntercession}
+            prayerRequests={prayerRequests}
+            challenges={challenges}
             onSessionUpdate={(session) => {
               setSessionsList((prev) => {
                 const existing = prev.find((s) => s.id === session.id)
@@ -75,16 +106,22 @@ export function PrayerClient({
                 return [session, ...prev]
               })
             }}
+            onDeclarationLogsUpdate={setDeclLogs}
+            onChallengesUpdate={setChallenges}
+            scheduleComplete={scheduleComplete}
           />
         </TabsContent>
 
         <TabsContent value="journal" className="mt-4">
-          <JournalTab
-            sessions={sessionsList}
-            todaySession={todaySession}
-            activities={activities}
+          <PrayerJournalTab sessions={sessionsList} />
+        </TabsContent>
+
+        <TabsContent value="tracker" className="mt-4">
+          <TrackerTab
+            prayerRequests={prayerRequests}
+            prayEvents={prayEvents}
             userId={userId}
-            onSessionsUpdate={setSessionsList}
+            onRequestsUpdate={setPrayerRequests}
           />
         </TabsContent>
 
@@ -95,14 +132,9 @@ export function PrayerClient({
             userId={userId}
             onSavedPrayersUpdate={setSavedPrayers}
             onWarfareUpdate={setWarfareScriptures}
-          />
-        </TabsContent>
-
-        <TabsContent value="requests" className="mt-4">
-          <RequestsTab
-            prayerRequests={prayerRequests}
-            userId={userId}
-            onRequestsUpdate={setPrayerRequests}
+            intercessionSchedule={intercessionSchedule}
+            challenges={challenges}
+            onChallengesUpdate={setChallenges}
           />
         </TabsContent>
       </Tabs>

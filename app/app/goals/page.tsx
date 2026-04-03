@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { getGoalsForUser } from "@/lib/data/user-config"
+import type { PersonalYearConfigRow } from "@/lib/personal-year"
 import { GoalsClient } from "./goals-client"
 import { getQuarterProgress } from "@/lib/data/dominion"
 
@@ -34,6 +35,7 @@ export default async function GoalsPage() {
   let yearPrayerAnsweredRes = { data: [] as { id: string }[] }
   let yearPrayerSessionsRes = { data: [] as { id: string }[] }
   let yearDeclarationLogsRes = { data: [] as { current_count: number | null }[] }
+  let personalYearsRes = { data: [] as PersonalYearConfigRow[] }
 
   try {
     const [
@@ -48,6 +50,7 @@ export default async function GoalsPage() {
       ypa,
       yps,
       ydl,
+      py,
     ] = await Promise.all([
     supabase
       .from("pulse_checks")
@@ -115,6 +118,11 @@ export default async function GoalsPage() {
       .eq("user_id", user.id)
       .gte("date", yearStartStr)
       .lte("date", todayStr),
+    supabase
+      .from("personal_year_config")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("year_number", { ascending: true }),
   ])
     pulseChecksRes = pc
     goalNotesRes = gn
@@ -127,6 +135,7 @@ export default async function GoalsPage() {
     yearPrayerAnsweredRes = ypa
     yearPrayerSessionsRes = yps
     yearDeclarationLogsRes = ydl
+    personalYearsRes = { data: (py.data ?? []) as PersonalYearConfigRow[] }
   } catch (e) {
     console.error("[goals] Fetch error:", e)
   }
@@ -157,6 +166,7 @@ export default async function GoalsPage() {
       goalNotes={goalNotes}
       devotions={devotions}
       quarterConfig={quarterConfig}
+      personalYears={personalYearsRes.data ?? []}
       quarterCode={quarterCode}
       quarterStartStr={quarterStartStr}
       quarterEndStr={quarterEndStr}

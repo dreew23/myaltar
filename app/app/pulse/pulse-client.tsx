@@ -16,6 +16,13 @@ import { SessionHistory } from "@/components/app/pulse/session-history"
 import type { GoalConfig } from "@/lib/data/dominion"
 import { PHASES, type PhaseId, type PulseSessionRow } from "@/lib/pulse"
 import { findSessionForWeek, getRecentSundays, toLocalISODate } from "@/lib/pulse-session-dates"
+import type { PersonalYearConfigRow } from "@/lib/personal-year"
+import {
+  formatDualPulseContextLine,
+  formatCalendarQuarterEndingLine,
+  getCalendarQuarterProgress,
+  getPersonalYearProgress,
+} from "@/lib/personal-year"
 
 type SessionState = {
   id: string
@@ -380,6 +387,21 @@ export function PulseClient(props: PulseClientProps) {
 
   const elapsedMinutes = sessionStartTime ? Math.floor((Date.now() - sessionStartTime) / 60000) : 0
 
+  const sessionAnchorDate = useMemo(() => new Date(props.sessionDateStr + "T12:00:00"), [props.sessionDateStr])
+  const personalProgress = useMemo(
+    () => getPersonalYearProgress(props.personalYears, sessionAnchorDate),
+    [props.personalYears, sessionAnchorDate]
+  )
+  const calendarForSession = useMemo(() => getCalendarQuarterProgress(sessionAnchorDate), [sessionAnchorDate])
+  const dualContextLine = useMemo(
+    () => formatDualPulseContextLine(personalProgress, calendarForSession),
+    [personalProgress, calendarForSession]
+  )
+  const phase5PersonalLine = personalProgress
+    ? `Personal year ${personalProgress.progress}% complete (Week ${personalProgress.weekNumber} of 13)`
+    : undefined
+  const phase5CalendarLine = formatCalendarQuarterEndingLine(calendarForSession)
+
   const weekStats = useMemo(() => {
     const devotions = props.weekDevotions as {
       date: string
@@ -498,6 +520,7 @@ export function PulseClient(props: PulseClientProps) {
           isSunday={isSunday}
           weekNumber={props.quarter.weekInQuarter}
           quarterName={props.quarter.phaseName}
+          dualContextLine={dualContextLine}
           hasSession={!!session}
           sessionComplete={!!session?.completed_at}
           onBegin={beginSession}
@@ -570,6 +593,7 @@ export function PulseClient(props: PulseClientProps) {
                   weekNumber={props.weekNumber}
                   pulseCheckDate={props.sessionDateStr}
                   onSavePulseCheck={savePulseCheck}
+                  dualContextLine={dualContextLine}
                 />
               )}
               {phase.id === "learn" && (
@@ -594,6 +618,8 @@ export function PulseClient(props: PulseClientProps) {
                 <Phase5Plan
                   quarterName={props.quarter.phaseName}
                   weekNumber={props.quarter.weekInQuarter}
+                  personalYearProgressLine={phase5PersonalLine}
+                  calendarQuarterContextLine={phase5CalendarLine}
                   nextWeekFocusDates={props.nextWeekFocusDates}
                   nextWeekDailyFocus={props.nextWeekDailyFocus}
                   nextWeekPriorities={nextWeekFocus}

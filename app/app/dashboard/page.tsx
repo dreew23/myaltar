@@ -1,13 +1,28 @@
+import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { getTodayIntercessionForUser } from "@/lib/data/user-config"
+import type { PersonalYearConfigRow } from "@/lib/personal-year"
 import { DashboardClient } from "./dashboard-client"
 
 export const metadata = { title: "DOMINION | ALTAR" }
 
+function safeTodayLog(raw: Record<string, unknown> | null) {
+  if (!raw) return null
+  const items = raw.gratitude_items
+  return {
+    prayer_complete: Boolean(raw.prayer_complete),
+    declarations_complete: Boolean(raw.declarations_complete),
+    gratitude_complete: Boolean(raw.gratitude_complete),
+    sermons_today: typeof raw.sermons_today === "number" ? raw.sermons_today : 0,
+    energy_score: typeof raw.energy_score === "number" ? raw.energy_score : 5,
+    gratitude_items: Array.isArray(items) ? items.map((x) => String(x)) : ["", "", ""],
+  }
+}
+
 export default async function DashboardPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
+  if (!user) redirect("/login")
 
   const todayIntercession = await getTodayIntercessionForUser(supabase, user.id)
 
@@ -32,9 +47,10 @@ export default async function DashboardPage() {
   let todayPrayerSessionRes = { data: null as { id: string; duration_minutes?: number | null; end_time: string | null } | null }
   let todayPulseSessionRes = { data: null as { id: string; started_at: string | null; completed_at: string | null; phases_completed: string[] | null; total_duration_minutes: number | null } | null }
   let weeklyGoalsRes = { data: null as { id: string; week_start_date: string; goal_1_text: string | null; goal_1_code: string | null; goal_1_completed: boolean; goal_2_text: string | null; goal_2_code: string | null; goal_2_completed: boolean; goal_3_text: string | null; goal_3_code: string | null; goal_3_completed: boolean } | null }
+  let personalYearsRes = { data: [] as Record<string, unknown>[] }
 
   try {
-    const [dev, dl, sem, today, weekly, prayerSession, pulseSession, weeklyGoals] = await Promise.all([
+    const [dev, dl, sem, today, weekly, prayerSession, pulseSession, weeklyGoals, personalYears] = await Promise.all([
       supabase
         .from("daily_devotions")
         .select("date, prayer_complete")
@@ -81,6 +97,11 @@ export default async function DashboardPage() {
         .eq("user_id", user.id)
         .eq("week_start_date", startOfWeekStr)
         .maybeSingle(),
+      supabase
+        .from("personal_year_config")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("year_number", { ascending: true }),
     ])
     devotionsRes = dev
     downloadsRes = dl
@@ -90,6 +111,7 @@ export default async function DashboardPage() {
     todayPrayerSessionRes = prayerSession
     todayPulseSessionRes = pulseSession
     weeklyGoalsRes = weeklyGoals
+    personalYearsRes = { data: personalYears.data ?? [] }
   } catch {
     // Tables may not exist; dashboard still renders with zeros
   }
@@ -227,7 +249,7 @@ export default async function DashboardPage() {
       divineDownloads={divineDownloads}
       sermonsThisWeek={sermonsThisWeek}
       dominionScore={dominionScore}
-      todayLog={todayLogRes.data}
+      todayLog={safeTodayLog(todayLogRes.data as Record<string, unknown> | null)}
       todayPrayerSession={todayPrayerSession}
       todayPulseSession={todayPulseSession}
       userId={user.id}
@@ -237,6 +259,7 @@ export default async function DashboardPage() {
       weeklyGoals={weeklyGoalsForDisplay}
       weekStartStr={startOfWeekStr}
       todayIntercession={safeIntercession}
+      personalYears={(personalYearsRes.data ?? []) as PersonalYearConfigRow[]}
     />
   )
 }

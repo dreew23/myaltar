@@ -12,6 +12,10 @@ type FocusRow = { focus_1: string; focus_2: string; focus_3: string; goal_1: str
 interface Phase5PlanProps {
   quarterName: string
   weekNumber: number
+  /** e.g. “Personal year 76% complete (Week 10 of 13)” */
+  personalYearProgressLine?: string
+  /** e.g. “Calendar Q1 ends in 2 days — Q2 starts Apr 1” */
+  calendarQuarterContextLine?: string
   nextWeekFocusDates: string[]
   nextWeekDailyFocus: { date: string; focus_1?: string; focus_2?: string; focus_3?: string; goal_1?: string; goal_2?: string; goal_3?: string }[]
   nextWeekPriorities: string[]
@@ -24,6 +28,8 @@ interface Phase5PlanProps {
 export function Phase5Plan({
   quarterName,
   weekNumber,
+  personalYearProgressLine,
+  calendarQuarterContextLine,
   nextWeekFocusDates,
   nextWeekDailyFocus,
   nextWeekPriorities,
@@ -64,9 +70,15 @@ export function Phase5Plan({
     <div className="space-y-6">
       <p className="text-sm text-[#3C1E38]/70">Plan the next week. Only after measuring, reviewing, and learning.</p>
 
-      <div className="rounded-lg border border-[#A7C2D7]/20 p-4">
+      <div className="rounded-lg border border-[#A7C2D7]/20 p-4 space-y-1">
         <p className="font-medium text-[#3C1E38]">Are you on track with the bigger picture?</p>
-        <p className="text-sm text-[#3C1E38]/70 mt-1">Week {weekNumber} of 13 — {quarterName}</p>
+        <p className="text-sm text-[#3C1E38]/70">Week {weekNumber} of 13 — {quarterName}</p>
+        {personalYearProgressLine && (
+          <p className="text-xs text-[#F9D57E] font-medium">{personalYearProgressLine}</p>
+        )}
+        {calendarQuarterContextLine && (
+          <p className="text-xs text-[#A7C2D7]">{calendarQuarterContextLine}</p>
+        )}
         {weekNumber >= 7 && (
           <Link href="/app/goals" className="inline-block mt-2 text-sm text-[#A7C2D7] font-medium hover:underline">
             Past halfway. Are your Big Rocks on track? →

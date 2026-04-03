@@ -5,6 +5,12 @@ import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 import type { GoalConfig } from "@/lib/data/dominion"
 import { getQuarterProgress } from "@/lib/data/dominion"
+import {
+  getPersonalYearProgress,
+  getCalendarQuarterProgress,
+  getCalendarQuarterChipsInRange,
+} from "@/lib/personal-year"
+import type { PersonalYearConfigRow } from "@/lib/personal-year"
 import { QuarterHealth } from "@/components/app/goals/quarter-health"
 import { GoalTrajectoryCard } from "@/components/app/goals/goal-trajectory-card"
 import { NotNowOverview } from "@/components/app/goals/not-now-overview"
@@ -49,6 +55,7 @@ interface Props {
   goalNotes: GoalNote[]
   devotions: Devotion[]
   quarterConfig: ReturnType<typeof getQuarterProgress>
+  personalYears: PersonalYearConfigRow[]
   quarterCode: string
   quarterStartStr: string
   quarterEndStr: string
@@ -82,6 +89,7 @@ export function GoalsClient({
   goalNotes,
   devotions,
   quarterConfig,
+  personalYears,
   quarterCode,
   quarterStartStr,
   seasonFruits,
@@ -90,6 +98,12 @@ export function GoalsClient({
 }: Props) {
   const [tab, setTab] = useState<"quarter" | "year">("quarter")
   const currentWeek = quarterConfig.weekInQuarter
+  const personal = useMemo(() => getPersonalYearProgress(personalYears), [personalYears])
+  const calendarQ = useMemo(() => getCalendarQuarterProgress(), [])
+  const calendarQuarterEndLabel = useMemo(() => {
+    const end = new Date(calendarQ.calendarYear, calendarQ.quarter * 3, 0)
+    return end.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+  }, [calendarQ.calendarYear, calendarQ.quarter])
 
   const daysInQuarterSoFar = useMemo(() => {
     const start = new Date(quarterStartStr + "T12:00:00").getTime()
@@ -269,11 +283,22 @@ export function GoalsClient({
   const notNowTotal = useMemo(() => goals.reduce((sum, g) => sum + g.notNow.length, 0), [])
 
   const quarterSummaries: Record<number, string> = useMemo(() => {
-    const q = quarterConfig.quarter
+    const key = personal?.yearNumber ?? quarterConfig.quarter
     return {
-      [q]: `Week ${currentWeek} of 13 — ${overallTrajectoryPct ?? 0}% overall`,
+      [key]: `Week ${personal?.weekNumber ?? currentWeek} of 13 — ${overallTrajectoryPct ?? 0}% overall`,
     }
-  }, [quarterConfig.quarter, currentWeek, overallTrajectoryPct])
+  }, [personal?.yearNumber, personal?.weekNumber, quarterConfig.quarter, currentWeek, overallTrajectoryPct])
+
+  const calendarOverlayLabels = useMemo(() => {
+    if (!personalYears.length) return []
+    const sorted = [...personalYears].sort((a, b) => a.year_number - b.year_number)
+    const first = sorted[0]
+    const last = sorted[sorted.length - 1]
+    if (!first?.start_date || !last?.end_date) return []
+    return getCalendarQuarterChipsInRange(first.start_date, last.end_date).map((c) => c.label)
+  }, [personalYears])
+
+  const currentPersonalYearNumber = personal?.yearNumber ?? personalYears[0]?.year_number ?? 1
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -284,16 +309,31 @@ export function GoalsClient({
             Your DOMINION journey — Quarter & Year trajectory
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-medium text-[#3C1E38]/70">
-            Year {quarterConfig.year}: {quarterConfig.phaseName}
-          </span>
-          <span className="text-xs text-[#3C1E38]/50">
-            Week {currentWeek} of {quarterConfig.totalWeeks}
-          </span>
-          <div className="w-8 h-8 rounded-full border-2 border-[#A7C2D7] flex items-center justify-center">
+        <div className="flex flex-wrap items-start justify-end gap-3 text-right max-w-lg">
+          <div className="flex flex-col items-end gap-0.5 min-w-0">
+            {personal ? (
+              <>
+                <span className="text-xs font-semibold text-[#3C1E38]">
+                  Year {personal.yearNumber}: {personal.yearName} — Week {personal.weekNumber} of {personal.totalWeeks}
+                </span>
+                <span className="text-[11px] text-[#3C1E38]/45">
+                  Calendar: {calendarQ.labelShort} ending {calendarQuarterEndLabel}
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="text-xs font-medium text-[#3C1E38]/70">
+                  Year {quarterConfig.year}: {quarterConfig.phaseName}
+                </span>
+                <span className="text-xs text-[#3C1E38]/50">
+                  Week {currentWeek} of {quarterConfig.totalWeeks} · {calendarQ.labelShort}
+                </span>
+              </>
+            )}
+          </div>
+          <div className="w-8 h-8 rounded-full border-2 border-[#A7C2D7] flex items-center justify-center shrink-0">
             <span className="text-[10px] font-bold text-[#3C1E38]">
-              {currentWeek}/{quarterConfig.totalWeeks}
+              {(personal?.weekNumber ?? currentWeek)}/{quarterConfig.totalWeeks}
             </span>
           </div>
         </div>
@@ -371,8 +411,10 @@ export function GoalsClient({
 
       {tab === "year" && (
         <YearView
-          currentQuarterId={quarterConfig.quarter}
+          personalYears={personalYears}
+          currentPersonalYearNumber={currentPersonalYearNumber}
           quarterSummaries={quarterSummaries}
+          calendarOverlayLabels={calendarOverlayLabels}
           yearFruits={yearFruits}
         />
       )}

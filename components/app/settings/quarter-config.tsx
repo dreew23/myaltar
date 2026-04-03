@@ -95,10 +95,10 @@ export function QuarterConfig({ userId, quarters, onQuartersChange }: QuarterCon
       <SectionCard
         id="quarter-config"
         icon={Calendar}
-        iconBg="bg-[#F9D57E]/20"
+        iconBg="bg-[#A7C2D7]/20"
         iconColor="text-[#3C1E38]"
-        title="Quarter Configuration"
-        subtitle="Manage your 13-week year cycles"
+        title="System Calendar"
+        subtitle="Quarter_config — calendar-aligned cycles (reference layer)"
       >
         <div className="space-y-6">
           {/* Current Quarter Display */}

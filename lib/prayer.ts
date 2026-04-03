@@ -13,6 +13,15 @@ export type RequestCategory = "personal" | "family" | "career" | "health" | "rel
 export type RequestStatus = "active" | "answered" | "redirected" | "released"
 export type RequestPriority = "urgent" | "high" | "normal" | "ongoing"
 
+/** Session atmosphere (Prayer Mode wrap-up) */
+export type PrayerAtmosphere =
+  | "peaceful"
+  | "intense"
+  | "warfare"
+  | "dry"
+  | "breakthrough"
+  | "mixed"
+
 export interface PrayerSession {
   id: string
   user_id: string
@@ -21,6 +30,8 @@ export interface PrayerSession {
   end_time: string | null
   duration_minutes: number | null
   session_type: SessionType
+  atmosphere?: PrayerAtmosphere | null
+  warfare_intensity?: number | null
   quality_rating: number | null
   presence_level: number | null
   focus_areas_covered: string[]
@@ -78,13 +89,31 @@ export interface PrayerRequest {
   id: string
   user_id: string
   request: string
+  title?: string | null
   category: RequestCategory | null
   scripture_anchor: string | null
   status: RequestStatus
   date_started: string
   date_answered: string | null
   answer_note: string | null
+  answer_type?: string | null
+  is_testimony?: boolean | null
+  prayed_count?: number | null
+  last_prayed_at?: string | null
   priority: RequestPriority
+  created_at: string
+  updated_at: string
+}
+
+export interface PrayerChallengeRow {
+  id: string
+  user_id: string
+  label: string
+  daily_target: number
+  unit: string
+  weekly_progress: number
+  week_start_monday: string | null
+  display_order: number | null
   created_at: string
   updated_at: string
 }

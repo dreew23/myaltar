@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
+import type { PersonalYearConfigRow } from "@/lib/personal-year"
 import SettingsClient from "./settings-client"
 import { getQuarterProgress } from "@/lib/data/dominion"
 
@@ -32,6 +33,7 @@ export default async function SettingsPage() {
   let pulseSessionsCount = defaultCount
   let goalNotesCount = defaultCount
   let weeklyGoalsCount = defaultCount
+  let personalYearsRes = { data: [] as PersonalYearConfigRow[] }
 
   try {
     const results = await Promise.all([
@@ -52,6 +54,7 @@ export default async function SettingsPage() {
       supabase.from("pulse_sessions").select("id", { count: "exact", head: true }).eq("user_id", user.id),
       supabase.from("goal_notes").select("id", { count: "exact", head: true }).eq("user_id", user.id),
       supabase.from("weekly_goals").select("id", { count: "exact", head: true }).eq("user_id", user.id),
+      supabase.from("personal_year_config").select("*").eq("user_id", user.id).order("year_number", { ascending: true }),
     ])
     profileRes = results[0] as { data: unknown }
     quartersRes = results[1] as { data: unknown[] }
@@ -70,6 +73,7 @@ export default async function SettingsPage() {
     pulseSessionsCount = (results[14] as { count?: number }) ?? defaultCount
     goalNotesCount = (results[15] as { count?: number }) ?? defaultCount
     weeklyGoalsCount = (results[16] as { count?: number }) ?? defaultCount
+    personalYearsRes = { data: ((results[17] as { data: PersonalYearConfigRow[] | null }).data ?? []) }
   } catch {
     // Tables may not exist yet (migrations not run). Use defaults above.
   }
@@ -131,6 +135,7 @@ export default async function SettingsPage() {
     <SettingsClient
       user={user}
       profile={profile}
+      personalYears={(personalYearsRes.data ?? []) as PersonalYearConfigRow[]}
       quarters={quarters}
       intercessionSchedule={intercessionRows}
       goals={goalRows}

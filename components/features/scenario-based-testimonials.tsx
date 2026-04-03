@@ -166,3 +166,59 @@ export default function ScenarioBasedTestimonials() {
     setCurrentTestimonial(0)
     trackEvent("testimonial_filter", "features")
   }
+
+  const stages = ["all", "seeker", "growing", "mature", "leader"] as const
+
+  if (filteredTestimonials.length === 0) {
+    return (
+      <section className="py-12 px-4 text-center text-sm text-[#3C1E38]/60">
+        No stories match this filter.
+      </section>
+    )
+  }
+
+  return (
+    <section className="py-16 px-4 bg-[#FDFCF9]">
+      <div className="max-w-3xl mx-auto space-y-6">
+        <div className="flex flex-wrap justify-center gap-2">
+          {stages.map((stage) => (
+            <button
+              key={stage}
+              type="button"
+              onClick={() => handleFilterChange(stage)}
+              className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
+                filterStage === stage
+                  ? "bg-[#F9D57E] text-[#3C1E38] font-medium"
+                  : "bg-white border border-[#A7C2D7]/30 text-[#3C1E38]/70 hover:bg-[#A7C2D7]/10"
+              }`}
+            >
+              {stage === "all" ? "All" : stage.charAt(0).toUpperCase() + stage.slice(1)}
+            </button>
+          ))}
+        </div>
+        <blockquote className="font-garamond text-lg sm:text-xl text-[#3C1E38] leading-relaxed">
+          &ldquo;{activeTestimonial.quote}&rdquo;
+        </blockquote>
+        <p className="text-sm font-medium text-[#3C1E38]">
+          {activeTestimonial.name} — {activeTestimonial.role}
+        </p>
+        <div className="flex justify-center gap-3 pt-2">
+          <button
+            type="button"
+            onClick={handlePrev}
+            className="px-4 py-2 rounded-lg border border-[#A7C2D7]/40 text-sm text-[#3C1E38] hover:bg-[#A7C2D7]/10"
+          >
+            Previous
+          </button>
+          <button
+            type="button"
+            onClick={handleNext}
+            className="px-4 py-2 rounded-lg border border-[#A7C2D7]/40 text-sm text-[#3C1E38] hover:bg-[#A7C2D7]/10"
+          >
+            Next
+          </button>
+        </div>
+      </div>
+    </section>
+  )
+}

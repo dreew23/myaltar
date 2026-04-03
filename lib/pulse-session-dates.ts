@@ -1,3 +1,5 @@
+import { getLegacyQuarterProgressForDate } from "@/lib/personal-year"
+
 /** Local calendar YYYY-MM-DD (avoid UTC drift from toISOString). */
 export function toLocalISODate(d: Date): string {
   const y = d.getFullYear()
@@ -25,20 +27,9 @@ export function getQuarterCodeForDate(d: Date): string {
   return `${year}-Q${q}`
 }
 
-/** Mirrors getQuarterProgress in dominion.ts but for an arbitrary date. */
+/** Mirrors `getQuarterProgress()` / calendar quarter + half-year labels for an arbitrary date. */
 export function getQuarterProgressForDate(d: Date) {
-  const yearStart = new Date(d.getFullYear(), 0, 1)
-  const dayOfYear = Math.floor((d.getTime() - yearStart.getTime()) / 86400000)
-  const quarter = Math.floor(dayOfYear / 91) + 1
-  const weekInQuarter = Math.min(Math.floor((dayOfYear % 91) / 7) + 1, 13)
-  const year = quarter <= 2 ? 1 : 2
-  return {
-    year,
-    quarter,
-    weekInQuarter,
-    totalWeeks: 13,
-    phaseName: year === 1 ? "Foundation & Habits" : "Momentum & Mastery",
-  }
+  return getLegacyQuarterProgressForDate(d)
 }
 
 /** Seven-day window ending on sessionDateStr (inclusive). */

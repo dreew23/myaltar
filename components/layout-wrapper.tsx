@@ -1,12 +1,13 @@
 "use client"
 
+import type { ReactNode } from "react"
 import { usePathname } from "next/navigation"
 import Navbar from "@/components/navbar"
 import Footer from "@/components/footer"
 
 const MARKETING_PATHS = ["/", "/product", "/features", "/testimonials", "/how-it-works", "/pricing", "/about"]
 
-export default function LayoutWrapper({ children }: { children: React.ReactNode }) {
+export default function LayoutWrapper({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const showMarketingNav = pathname !== null && MARKETING_PATHS.some((p) => p === pathname || (p !== "/" && pathname.startsWith(p)))
 

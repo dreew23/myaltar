@@ -1,0 +1,52 @@
+/* Scoped to /app/prayer via .prayer-module — parchment design system */
+.prayer-module {
+  --prayer-page: #faf8f4;
+  --prayer-card: #ffffff;
+  --prayer-surface-2: #f5f2ec;
+  --prayer-surface-3: #ede9e0;
+  --prayer-border: #e8e2d6;
+  --prayer-border-strong: #d4ccb8;
+  --prayer-gold: #b8860b;
+  --prayer-gold-light: #d4a017;
+  --prayer-rose: #c0392b;
+  --prayer-amber: #d35400;
+  --prayer-blue: #2471a3;
+  --prayer-sage: #1e8449;
+  --prayer-ink: #2c2419;
+  font-family: var(--font-prayer-sans), ui-sans-serif, system-ui, sans-serif;
+  background-color: var(--prayer-page);
+  color: var(--prayer-ink);
+}
+
+.prayer-module .font-prayer-display {
+  font-family: var(--font-prayer-display), "Cormorant Garamond", Georgia, serif;
+}
+
+.prayer-module .prayer-glass {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  background: rgba(250, 248, 244, 0.85);
+  border-bottom: 1px solid var(--prayer-border);
+}
+
+.prayer-module .prayer-tab-active {
+  color: var(--prayer-gold);
+  box-shadow: inset 0 -2px 0 var(--prayer-gold-light);
+}
+
+.prayer-module .prayer-focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--prayer-page), 0 0 0 4px var(--prayer-gold-light);
+}
+
+.prayer-module .prayer-overlay {
+  background: rgba(44, 36, 25, 0.45);
+}
+
+@media (max-width: 600px) {
+  .prayer-module .prayer-timer-hero {
+    font-size: 42px !important;
+    line-height: 1.1;
+  }
+}
+

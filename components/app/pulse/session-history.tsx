@@ -2,11 +2,34 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { ChevronDown, ChevronRight } from "lucide-react"
+import { ChevronDown, ChevronRight, Star } from "lucide-react"
 import type { PulseSessionRow } from "@/lib/pulse"
 import { SESSION_QUALITY_LABELS } from "@/lib/pulse"
 
 const PHASE_ORDER = ["setup", "measure", "review", "learn", "plan", "close"] as const
+
+/** Visual stars for “How effective was this planning session?” (1–5). */
+function SessionQualityStars({ rating, size = "md" }: { rating: number; size?: "sm" | "md" }) {
+  const n = Math.min(5, Math.max(1, Math.round(rating)))
+  const starClass = size === "sm" ? "w-3 h-3" : "w-4 h-4"
+  return (
+    <div
+      className="flex items-center gap-0.5"
+      role="img"
+      aria-label={`Planning session rated ${n} out of 5 stars`}
+    >
+      {[0, 1, 2, 3, 4].map((i) => (
+        <Star
+          key={i}
+          className={`${starClass} shrink-0 ${
+            i < n ? "fill-[#F9D57E] text-[#D4A84B]" : "fill-none text-[#A7C2D7]/40"
+          }`}
+          strokeWidth={i < n ? 0 : 1.5}
+        />
+      ))}
+    </div>
+  )
+}
 
 function CompletedSessionSummary({ s }: { s: PulseSessionRow }) {
   const priorities = s.phase5_next_week_focus?.filter(Boolean) ?? []
@@ -18,13 +41,14 @@ function CompletedSessionSummary({ s }: { s: PulseSessionRow }) {
     <div className="space-y-3 text-[#3C1E38]/90">
       {s.session_quality != null && (
         <div>
-          <p className="text-xs font-medium text-[#3C1E38]/50 uppercase tracking-wide">Session quality</p>
-          <p className="mt-0.5">
-            <span className="font-semibold text-[#3C1E38]">{s.session_quality}/5</span>
+          <p className="text-xs font-medium text-[#3C1E38]/50 uppercase tracking-wide">Session effectiveness</p>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <SessionQualityStars rating={s.session_quality} />
+            <span className="text-sm font-semibold text-[#3C1E38] tabular-nums">{s.session_quality}/5</span>
             {SESSION_QUALITY_LABELS[s.session_quality] ? (
-              <span className="text-[#3C1E38]/80"> — {SESSION_QUALITY_LABELS[s.session_quality]}</span>
+              <span className="text-sm text-[#3C1E38]/80">— {SESSION_QUALITY_LABELS[s.session_quality]}</span>
             ) : null}
-          </p>
+          </div>
         </div>
       )}
       {priorities.length > 0 && (
@@ -140,12 +164,26 @@ export function SessionHistory({
                       </span>
                     )}
                   </div>
-                  <div className="text-sm text-[#3C1E38]/70">
-                    {!s
-                      ? "—"
-                      : completed
-                        ? `✅ Complete — ${s.total_duration_minutes != null ? `${Math.floor(s.total_duration_minutes / 60)}h ${s.total_duration_minutes % 60}m` : "—"}`
-                        : `🔄 ${phaseCount} of 6 phases`}
+                  <div className="text-sm text-[#3C1E38]/70 flex flex-wrap items-center gap-x-2 gap-y-1">
+                    {!s ? (
+                      "—"
+                    ) : completed ? (
+                      <>
+                        <span>
+                          ✅ Complete —{" "}
+                          {s.total_duration_minutes != null
+                            ? `${Math.floor(s.total_duration_minutes / 60)}h ${s.total_duration_minutes % 60}m`
+                            : "—"}
+                        </span>
+                        {s.session_quality != null && (
+                          <span className="inline-flex items-center gap-1.5" title="How effective was this planning session?">
+                            <SessionQualityStars rating={s.session_quality} size="sm" />
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      `🔄 ${phaseCount} of 6 phases`
+                    )}
                   </div>
                   {s && (
                     <div className="flex gap-1 pt-1">
