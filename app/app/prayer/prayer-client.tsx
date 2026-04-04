@@ -1,6 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
+import { localCalendarDateString } from "@/lib/prayer-week"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { PrayerModeFlow } from "./prayer-mode-flow"
 import { PrayerJournalTab } from "./prayer-journal-tab"
@@ -13,7 +15,6 @@ import type { TodayIntercession } from "@/lib/data/user-config"
 
 interface Props {
   sessions: PrayerSession[]
-  todaySession: PrayerSession | null
   savedPrayers: SavedPrayer[]
   warfareScriptures: WarfareScripture[]
   prayerRequests: PrayerRequest[]
@@ -29,7 +30,6 @@ interface Props {
 
 export function PrayerClient({
   sessions,
-  todaySession,
   savedPrayers: initialSavedPrayers,
   warfareScriptures: initialWarfare,
   prayerRequests: initialRequests,
@@ -42,6 +42,10 @@ export function PrayerClient({
   scheduleComplete,
   challenges: initialChallenges,
 }: Props) {
+  const router = useRouter()
+  const [localDayKey, setLocalDayKey] = useState(() => localCalendarDateString())
+  const lastDayRef = useRef<string | null>(null)
+
   const [savedPrayers, setSavedPrayers] = useState(initialSavedPrayers)
   const [warfareScriptures, setWarfareScriptures] = useState(initialWarfare)
   const [prayerRequests, setPrayerRequests] = useState(initialRequests)
@@ -49,6 +53,57 @@ export function PrayerClient({
   const [sessionsList, setSessionsList] = useState(sessions)
   const [declLogs, setDeclLogs] = useState(initialDeclLogs)
   const [challenges, setChallenges] = useState(initialChallenges)
+
+  // Keep client state aligned when server props refresh (new day, navigation, router.refresh).
+  useEffect(() => {
+    setSessionsList(sessions)
+  }, [sessions])
+
+  useEffect(() => {
+    setDeclLogs(initialDeclLogs)
+  }, [initialDeclLogs])
+
+  useEffect(() => {
+    setChallenges(initialChallenges)
+  }, [initialChallenges])
+
+  // Tick local calendar day so Prayer Mode resets at local midnight (not UTC).
+  useEffect(() => {
+    const sync = () => {
+      const now = localCalendarDateString()
+      setLocalDayKey((k) => (k !== now ? now : k))
+    }
+    const id = setInterval(sync, 15_000)
+    const onVis = () => {
+      if (document.visibilityState === "visible") sync()
+    }
+    document.addEventListener("visibilitychange", onVis)
+    return () => {
+      clearInterval(id)
+      document.removeEventListener("visibilitychange", onVis)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (lastDayRef.current === null) {
+      lastDayRef.current = localDayKey
+      return
+    }
+    if (lastDayRef.current !== localDayKey) {
+      lastDayRef.current = localDayKey
+      router.refresh()
+    }
+  }, [localDayKey, router])
+
+  const todaySession = useMemo(() => {
+    return (
+      sessionsList.find((s) => s.date === localDayKey && s.session_type === "morning") ?? null
+    )
+  }, [sessionsList, localDayKey])
+
+  const declarationLogsToday = useMemo(() => {
+    return declLogs.filter((l) => l.date === localDayKey)
+  }, [declLogs, localDayKey])
 
   return (
     <div className="mx-auto max-w-4xl px-3 pb-12 pt-2">
@@ -92,9 +147,10 @@ export function PrayerClient({
         <TabsContent value="mode" className="mt-4">
           <PrayerModeFlow
             sessions={sessionsList}
+            todayDateKey={localDayKey}
             todaySession={todaySession}
             declarations={declarations}
-            todayDeclarationLogs={declLogs}
+            todayDeclarationLogs={declarationLogsToday}
             userId={userId}
             todayIntercession={todayIntercession}
             prayerRequests={prayerRequests}
@@ -106,7 +162,12 @@ export function PrayerClient({
                 return [session, ...prev]
               })
             }}
-            onDeclarationLogsUpdate={setDeclLogs}
+            onDeclarationLogsUpdate={(logs) => {
+              setDeclLogs((prev) => {
+                const rest = prev.filter((l) => l.date !== localDayKey)
+                return [...rest, ...logs]
+              })
+            }}
             onChallengesUpdate={setChallenges}
             scheduleComplete={scheduleComplete}
           />

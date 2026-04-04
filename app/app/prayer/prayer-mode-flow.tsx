@@ -7,7 +7,7 @@ import { ChevronDown, ChevronRight } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { prayerAreas } from "@/lib/data/dominion"
 import { getVerseForToday } from "@/lib/prayer-verses"
-import { mondayDateString } from "@/lib/prayer-week"
+import { localCalendarDateString, mondayDateString } from "@/lib/prayer-week"
 import type { PrayerAtmosphere, PrayerChallengeRow, PrayerRequest, PrayerSession } from "@/lib/prayer"
 import type { TodayIntercession } from "@/lib/data/user-config"
 import type { Declaration, DeclarationLog } from "@/components/app/declarations/types"
@@ -58,11 +58,11 @@ function computeStreak(sessions: PrayerSession[]): number {
   const done = new Set(sessions.filter((s) => s.end_time).map((s) => s.date))
   const d = new Date()
   d.setHours(0, 0, 0, 0)
-  const todayKey = d.toISOString().split("T")[0]!
+  const todayKey = localCalendarDateString(d)
   if (!done.has(todayKey)) d.setDate(d.getDate() - 1)
   let streak = 0
   for (;;) {
-    const key = d.toISOString().split("T")[0]!
+    const key = localCalendarDateString(d)
     if (done.has(key)) {
       streak++
       d.setDate(d.getDate() - 1)
@@ -73,6 +73,8 @@ function computeStreak(sessions: PrayerSession[]): number {
 
 interface Props {
   sessions: PrayerSession[]
+  /** Local calendar YYYY-MM-DD — must match DB `date` for new sessions (not UTC-only). */
+  todayDateKey: string
   todaySession: PrayerSession | null
   declarations: Declaration[]
   todayDeclarationLogs: DeclarationLog[]
@@ -88,6 +90,7 @@ interface Props {
 
 export function PrayerModeFlow({
   sessions,
+  todayDateKey,
   todaySession,
   declarations,
   todayDeclarationLogs,
@@ -109,6 +112,8 @@ export function PrayerModeFlow({
   const [session, setSession] = useState<PrayerSession | null>(todaySession)
   const [dayComplete, setDayComplete] = useState(!!todaySession?.end_time)
   const [presetStart, setPresetStart] = useState<Date | null>(null)
+  /** Which time chip is active (fixed presets + "Now"); avoids hour-mismatch and excludes "Now" from selection styling. */
+  const [presetLabel, setPresetLabel] = useState<string | null>(null)
   const [customTime, setCustomTime] = useState("")
 
   const [toolsOpen, setToolsOpen] = useState(false)
@@ -159,7 +164,7 @@ export function PrayerModeFlow({
     return () => clearInterval(id)
   }, [phase, session?.start_time, session?.end_time])
 
-  const todayStr = new Date().toISOString().split("T")[0]!
+  const todayStr = todayDateKey
 
   const elapsedMs = useMemo(() => {
     if (!session?.start_time || session.end_time) return 0
@@ -224,10 +229,10 @@ export function PrayerModeFlow({
         start = new Date()
         start.setHours(hh ?? 0, mm ?? 0, 0, 0)
       } else {
-        start = presetStart ?? new Date()
+        start = presetLabel === "Now" ? new Date() : (presetStart ?? new Date())
       }
     } else {
-      start = presetStart ?? new Date()
+      start = presetLabel === "Now" ? new Date() : (presetStart ?? new Date())
     }
 
     const { data, error } = await supabase
@@ -475,11 +480,12 @@ export function PrayerModeFlow({
                     key={p.label}
                     type="button"
                     onClick={() => {
+                      setPresetLabel(p.label)
                       setPresetStart(p.getDate())
                       setCustomTime("")
                     }}
                     className={`prayer-focus-ring rounded-full border px-3 py-1.5 text-xs font-medium ${
-                      presetStart?.getHours() === p.getDate().getHours() && p.label !== "Now"
+                      presetLabel === p.label
                         ? "border-[#b8860b] bg-[#f5f2ec] text-[#b8860b]"
                         : "border-[var(--prayer-border)] bg-white text-[#2c2419]/80"
                     }`}
@@ -496,6 +502,7 @@ export function PrayerModeFlow({
                   onChange={(e) => {
                     setCustomTime(e.target.value)
                     setPresetStart(null)
+                    setPresetLabel(null)
                   }}
                   className="prayer-focus-ring rounded-lg border px-2 py-1 text-sm"
                   style={{ borderColor: "var(--prayer-border)" }}

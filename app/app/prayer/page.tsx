@@ -13,10 +13,13 @@ export default async function PrayerPage() {
   if (!user) return null
 
   const todayIntercession = await getTodayIntercessionForUser(supabase, user.id)
-  const todayStr = new Date().toISOString().split("T")[0]
+
+  // Recent declaration logs (client filters to local "today"; avoids UTC vs local mismatch).
+  const since = new Date()
+  since.setUTCDate(since.getUTCDate() - 60)
+  const declarationLogsSince = since.toISOString().split("T")[0]
 
   let sessionsRes = { data: [] as unknown[], error: null }
-  let todaySessionRes = { data: null as unknown, error: null }
   let savedPrayersRes = { data: [] as unknown[] }
   let warfareRes = { data: [] as unknown[] }
   let requestsRes = { data: [] as unknown[] }
@@ -27,20 +30,13 @@ export default async function PrayerPage() {
   let prayEventsList: { request_id: string; prayed_date: string }[] = []
 
   try {
-    const [s, t, sp, w, r, d, dl] = await Promise.all([
+    const [s, sp, w, r, d, dl] = await Promise.all([
       supabase
         .from("prayer_sessions")
         .select("*")
         .eq("user_id", user.id)
         .order("date", { ascending: false })
         .limit(60),
-      supabase
-        .from("prayer_sessions")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("date", todayStr)
-        .eq("session_type", "morning")
-        .maybeSingle(),
       supabase
         .from("saved_prayers")
         .select("*")
@@ -67,10 +63,9 @@ export default async function PrayerPage() {
         .from("declaration_logs")
         .select("*")
         .eq("user_id", user.id)
-        .eq("date", todayStr),
+        .gte("date", declarationLogsSince),
     ])
     sessionsRes = s
-    todaySessionRes = t
     savedPrayersRes = sp
     warfareRes = w
     requestsRes = r
@@ -142,7 +137,6 @@ export default async function PrayerPage() {
   return (
     <PrayerClient
       sessions={sessionsRes.data ?? []}
-      todaySession={todaySessionRes.data ?? null}
       savedPrayers={savedPrayersRes.data ?? []}
       warfareScriptures={warfareRes.data ?? []}
       prayerRequests={requestsRes.data ?? []}
