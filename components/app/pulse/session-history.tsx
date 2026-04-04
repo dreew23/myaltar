@@ -175,9 +175,13 @@ export function SessionHistory({
                             ? `${Math.floor(s.total_duration_minutes / 60)}h ${s.total_duration_minutes % 60}m`
                             : "—"}
                         </span>
-                        {s.session_quality != null && (
+                        {s.session_quality != null ? (
                           <span className="inline-flex items-center gap-1.5" title="How effective was this planning session?">
                             <SessionQualityStars rating={s.session_quality} size="sm" />
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-[#3C1E38]/40" title="Rate in Phase 6 when you open this session">
+                            No rating yet
                           </span>
                         )}
                       </>

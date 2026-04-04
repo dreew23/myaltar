@@ -57,9 +57,13 @@ export default async function DashboardPage() {
   }
   let weeklyGoalsRes = { data: null as { id: string; week_start_date: string; goal_1_text: string | null; goal_1_code: string | null; goal_1_completed: boolean; goal_2_text: string | null; goal_2_code: string | null; goal_2_completed: boolean; goal_3_text: string | null; goal_3_code: string | null; goal_3_completed: boolean } | null }
   let personalYearsRes = { data: [] as Record<string, unknown>[] }
+  let latestCompletedPulseRes = {
+    data: null as { date: string; session_quality: number | null } | null,
+  }
 
   try {
-    const [dev, dl, sem, today, weekly, prayerSession, pulseSession, weeklyGoals, personalYears] = await Promise.all([
+    const [dev, dl, sem, today, weekly, prayerSession, pulseSession, weeklyGoals, personalYears, latestPulse] =
+      await Promise.all([
       supabase
         .from("daily_devotions")
         .select("date, prayer_complete")
@@ -111,6 +115,14 @@ export default async function DashboardPage() {
         .select("*")
         .eq("user_id", user.id)
         .order("year_number", { ascending: true }),
+      supabase
+        .from("pulse_sessions")
+        .select("date, session_quality")
+        .eq("user_id", user.id)
+        .not("completed_at", "is", null)
+        .order("date", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ])
     devotionsRes = dev
     downloadsRes = dl
@@ -121,6 +133,7 @@ export default async function DashboardPage() {
     todayPulseSessionRes = pulseSession
     weeklyGoalsRes = weeklyGoals
     personalYearsRes = { data: personalYears.data ?? [] }
+    latestCompletedPulseRes = latestPulse
   } catch {
     // Tables may not exist; dashboard still renders with zeros
   }
@@ -131,6 +144,7 @@ export default async function DashboardPage() {
   const dominionScore = Math.min(10, Math.round((prayerStreak / 7) * 5 + (sermonsThisWeek / 5) * 5))
   const todayPrayerSession = todayPrayerSessionRes.data ?? null
   const todayPulseSession = todayPulseSessionRes.data ?? null
+  const latestCompletedPulse = latestCompletedPulseRes.data ?? null
 
   let weeklySermonsList: { id: string; sermon_id: string; title: string; listened: boolean; is_weekly_principle: boolean; mastery_key_principle: string | null }[] = []
   try {
@@ -261,6 +275,7 @@ export default async function DashboardPage() {
       todayLog={safeTodayLog(todayLogRes.data as Record<string, unknown> | null)}
       todayPrayerSession={todayPrayerSession}
       todayPulseSession={todayPulseSession}
+      latestCompletedPulse={latestCompletedPulse}
       userId={user.id}
       weeklySermonPrinciple={weeklyPrincipleText}
       weeklyPrincipleSermonTitle={weeklyPrincipleTitle}

@@ -55,6 +55,8 @@ interface Props {
     total_duration_minutes: number | null
     session_quality: number | null
   } | null
+  /** Most recent completed planning session (for star rating when today is not Sunday). */
+  latestCompletedPulse: { date: string; session_quality: number | null } | null
   userId: string
   weeklySermonPrinciple: string | null
   weeklyPrincipleSermonTitle?: string | null
@@ -69,7 +71,7 @@ const GOAL_CODES = ["G1", "G2", "G3", "G4", "G5", "G6", "G7"] as const
 
 export function DashboardClient({
   prayerStreak, divineDownloads, sermonsThisWeek, dominionScore,
-  todayLog, todayPrayerSession, todayPulseSession, userId, weeklySermonPrinciple,
+  todayLog, todayPrayerSession, todayPulseSession, latestCompletedPulse, userId, weeklySermonPrinciple,
   weeklyPrincipleSermonTitle, weeklySermonsList = [],
   weeklyGoals, weekStartStr,
   todayIntercession,
@@ -282,6 +284,67 @@ export function DashboardClient({
         </Link>
       </div>
 
+      {/* Mon–Sat: Pulse + Prayer (Sunday uses the gold card below) */}
+      {!sunday && (
+        <div className="rounded-xl border border-[#A7C2D7]/20 bg-white p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="min-w-0 space-y-1">
+            <p className="font-playfair font-semibold text-[#3C1E38]">Sunday Pulse & Prayer</p>
+            <div className="text-xs text-[#3C1E38]/55">
+              {latestCompletedPulse?.session_quality != null ? (
+                <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span>
+                    Last planning session{" "}
+                    {new Date(latestCompletedPulse.date + "T12:00:00").toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                    })}
+                    :
+                  </span>
+                  <SessionQualityStars rating={latestCompletedPulse.session_quality} size="sm" />
+                  <span className="font-semibold text-[#3C1E38] tabular-nums">
+                    {latestCompletedPulse.session_quality}/5
+                  </span>
+                  {SESSION_QUALITY_LABELS[latestCompletedPulse.session_quality] ? (
+                    <span className="text-[#3C1E38]/45">
+                      {SESSION_QUALITY_LABELS[latestCompletedPulse.session_quality]}
+                    </span>
+                  ) : null}
+                </span>
+              ) : latestCompletedPulse ? (
+                <span>
+                  Last planning session{" "}
+                  {new Date(latestCompletedPulse.date + "T12:00:00").toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                  })}
+                  .{" "}
+                  <Link href="/app/pulse" className="font-medium text-[#A7C2D7] hover:underline">
+                    Open Sunday Pulse
+                  </Link>{" "}
+                  and use Phase 6 to rate how effective it was.
+                </span>
+              ) : (
+                "Use Sunday Pulse for your weekly review and Prayer Mode for your guided flow."
+              )}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 shrink-0">
+            <Link href="/app/prayer">
+              <Button size="sm" variant="outline" className="border-[#B8860B]/40 text-[#3C1E38] hover:bg-[#F9D57E]/20">
+                <Heart className="w-3 h-3 mr-1" />
+                Prayer
+              </Button>
+            </Link>
+            <Link href="/app/pulse">
+              <Button size="sm" className="bg-[#3C1E38] hover:bg-[#3C1E38]/90 text-[#F9D57E] border border-[#3C1E38]">
+                Sunday Pulse
+                <ArrowRight className="w-3 h-3 ml-1" />
+              </Button>
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* Sunday Planning Session — gold theme, session state */}
       {sunday && (
         <div className="bg-gradient-to-r from-[#F9D57E]/20 via-[#F9D57E]/15 to-[#F9D57E]/10 rounded-xl p-4 border border-[#F9D57E]/30">
@@ -309,6 +372,13 @@ export function DashboardClient({
                           </span>
                         ) : null}
                       </div>
+                    )}
+                    {todayPulseSession.session_quality == null && (
+                      <p className="text-xs text-[#8B6914]">
+                        Open your session and save{" "}
+                        <span className="font-medium">Phase 6 — Setdown &amp; Close</span> to add a 1–5 effectiveness
+                        rating.
+                      </p>
                     )}
                   </div>
                 ) : todayPulseSession?.started_at ? (
