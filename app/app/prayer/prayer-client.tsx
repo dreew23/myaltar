@@ -43,7 +43,8 @@ export function PrayerClient({
   challenges: initialChallenges,
 }: Props) {
   const router = useRouter()
-  const [localDayKey, setLocalDayKey] = useState(() => localCalendarDateString())
+  /** Set only on the client after mount so SSR (UTC) and browser (local TZ) never disagree — fixes hydration errors. */
+  const [localDayKey, setLocalDayKey] = useState<string | null>(null)
   const lastDayRef = useRef<string | null>(null)
 
   const [savedPrayers, setSavedPrayers] = useState(initialSavedPrayers)
@@ -67,12 +68,13 @@ export function PrayerClient({
     setChallenges(initialChallenges)
   }, [initialChallenges])
 
-  // Tick local calendar day so Prayer Mode resets at local midnight (not UTC).
+  // Initialize local day on client only, then tick so Prayer Mode resets at local midnight (not UTC).
   useEffect(() => {
     const sync = () => {
       const now = localCalendarDateString()
       setLocalDayKey((k) => (k !== now ? now : k))
     }
+    sync()
     const id = setInterval(sync, 15_000)
     const onVis = () => {
       if (document.visibilityState === "visible") sync()
@@ -85,6 +87,7 @@ export function PrayerClient({
   }, [])
 
   useEffect(() => {
+    if (localDayKey === null) return
     if (lastDayRef.current === null) {
       lastDayRef.current = localDayKey
       return
@@ -96,12 +99,14 @@ export function PrayerClient({
   }, [localDayKey, router])
 
   const todaySession = useMemo(() => {
+    if (localDayKey === null) return null
     return (
       sessionsList.find((s) => s.date === localDayKey && s.session_type === "morning") ?? null
     )
   }, [sessionsList, localDayKey])
 
   const declarationLogsToday = useMemo(() => {
+    if (localDayKey === null) return []
     return declLogs.filter((l) => l.date === localDayKey)
   }, [declLogs, localDayKey])
 
@@ -145,32 +150,41 @@ export function PrayerClient({
         </TabsList>
 
         <TabsContent value="mode" className="mt-4">
-          <PrayerModeFlow
-            sessions={sessionsList}
-            todayDateKey={localDayKey}
-            todaySession={todaySession}
-            declarations={declarations}
-            todayDeclarationLogs={declarationLogsToday}
-            userId={userId}
-            todayIntercession={todayIntercession}
-            prayerRequests={prayerRequests}
-            challenges={challenges}
-            onSessionUpdate={(session) => {
-              setSessionsList((prev) => {
-                const existing = prev.find((s) => s.id === session.id)
-                if (existing) return prev.map((s) => (s.id === session.id ? session : s))
-                return [session, ...prev]
-              })
-            }}
-            onDeclarationLogsUpdate={(logs) => {
-              setDeclLogs((prev) => {
-                const rest = prev.filter((l) => l.date !== localDayKey)
-                return [...rest, ...logs]
-              })
-            }}
-            onChallengesUpdate={setChallenges}
-            scheduleComplete={scheduleComplete}
-          />
+          {localDayKey === null ? (
+            <div
+              className="rounded-2xl border bg-[var(--prayer-card)] p-8 text-center text-sm text-[#2c2419]/60"
+              style={{ borderColor: "var(--prayer-border)" }}
+            >
+              Loading prayer…
+            </div>
+          ) : (
+            <PrayerModeFlow
+              sessions={sessionsList}
+              todayDateKey={localDayKey}
+              todaySession={todaySession}
+              declarations={declarations}
+              todayDeclarationLogs={declarationLogsToday}
+              userId={userId}
+              todayIntercession={todayIntercession}
+              prayerRequests={prayerRequests}
+              challenges={challenges}
+              onSessionUpdate={(session) => {
+                setSessionsList((prev) => {
+                  const existing = prev.find((s) => s.id === session.id)
+                  if (existing) return prev.map((s) => (s.id === session.id ? session : s))
+                  return [session, ...prev]
+                })
+              }}
+              onDeclarationLogsUpdate={(logs) => {
+                setDeclLogs((prev) => {
+                  const rest = prev.filter((l) => l.date !== localDayKey)
+                  return [...rest, ...logs]
+                })
+              }}
+              onChallengesUpdate={setChallenges}
+              scheduleComplete={scheduleComplete}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="journal" className="mt-4">

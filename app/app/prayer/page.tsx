@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { getTodayIntercessionForUser } from "@/lib/data/user-config"
 import { mondayDateString } from "@/lib/prayer-week"
@@ -10,7 +11,7 @@ export const metadata = { title: "Prayer | ALTAR" }
 export default async function PrayerPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
+  if (!user) redirect("/login")
 
   const todayIntercession = await getTodayIntercessionForUser(supabase, user.id)
 
