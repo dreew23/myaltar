@@ -523,6 +523,7 @@ export function PulseClient(props: PulseClientProps) {
           dualContextLine={dualContextLine}
           hasSession={!!session}
           sessionComplete={!!session?.completed_at}
+          sessionQuality={session?.session_quality ?? null}
           onBegin={beginSession}
         />
       )}

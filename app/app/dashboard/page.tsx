@@ -45,7 +45,16 @@ export default async function DashboardPage() {
   let todayLogRes = { data: null as Record<string, unknown> | null }
   let weeklyPrincipleRes = { data: null as { weekly_principle?: string | null } | null }
   let todayPrayerSessionRes = { data: null as { id: string; duration_minutes?: number | null; end_time: string | null } | null }
-  let todayPulseSessionRes = { data: null as { id: string; started_at: string | null; completed_at: string | null; phases_completed: string[] | null; total_duration_minutes: number | null } | null }
+  let todayPulseSessionRes = {
+    data: null as {
+      id: string
+      started_at: string | null
+      completed_at: string | null
+      phases_completed: string[] | null
+      total_duration_minutes: number | null
+      session_quality: number | null
+    } | null,
+  }
   let weeklyGoalsRes = { data: null as { id: string; week_start_date: string; goal_1_text: string | null; goal_1_code: string | null; goal_1_completed: boolean; goal_2_text: string | null; goal_2_code: string | null; goal_2_completed: boolean; goal_3_text: string | null; goal_3_code: string | null; goal_3_completed: boolean } | null }
   let personalYearsRes = { data: [] as Record<string, unknown>[] }
 
@@ -87,7 +96,7 @@ export default async function DashboardPage() {
         .maybeSingle(),
       supabase
         .from("pulse_sessions")
-        .select("id, started_at, completed_at, phases_completed, total_duration_minutes")
+        .select("id, started_at, completed_at, phases_completed, total_duration_minutes, session_quality")
         .eq("user_id", user.id)
         .eq("date", todayStr)
         .maybeSingle(),

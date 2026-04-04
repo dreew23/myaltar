@@ -16,6 +16,8 @@ import {
 import { getPersonalYearProgress, getCalendarQuarterProgress } from "@/lib/personal-year"
 import type { PersonalYearConfigRow } from "@/lib/personal-year"
 import { QuickCaptureForm } from "@/app/app/downloads/downloads-client"
+import { SessionQualityStars } from "@/components/app/pulse/session-history"
+import { SESSION_QUALITY_LABELS } from "@/lib/pulse"
 
 interface WeeklyGoalsRow {
   id: string
@@ -45,7 +47,14 @@ interface Props {
     gratitude_items?: string[]
   } | null
   todayPrayerSession: { id: string; duration_minutes?: number | null; end_time: string | null } | null
-  todayPulseSession: { id: string; started_at: string | null; completed_at: string | null; phases_completed: string[] | null; total_duration_minutes: number | null } | null
+  todayPulseSession: {
+    id: string
+    started_at: string | null
+    completed_at: string | null
+    phases_completed: string[] | null
+    total_duration_minutes: number | null
+    session_quality: number | null
+  } | null
   userId: string
   weeklySermonPrinciple: string | null
   weeklyPrincipleSermonTitle?: string | null
@@ -284,9 +293,24 @@ export function DashboardClient({
               <div>
                 <p className="font-playfair font-bold text-[#3C1E38]">Sunday Planning Session</p>
                 {todayPulseSession?.completed_at ? (
-                  <p className="text-xs text-[#3C1E38]/60">
-                    Session complete ✓ — {todayPulseSession.total_duration_minutes != null ? `${Math.floor(todayPulseSession.total_duration_minutes / 60)}h ${todayPulseSession.total_duration_minutes % 60}m` : ""}
-                  </p>
+                  <div className="space-y-1.5">
+                    <p className="text-xs text-[#3C1E38]/60">
+                      Session complete ✓ — {todayPulseSession.total_duration_minutes != null ? `${Math.floor(todayPulseSession.total_duration_minutes / 60)}h ${todayPulseSession.total_duration_minutes % 60}m` : ""}
+                    </p>
+                    {todayPulseSession.session_quality != null && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <SessionQualityStars rating={todayPulseSession.session_quality} size="sm" />
+                        <span className="text-xs font-semibold text-[#3C1E38] tabular-nums">
+                          {todayPulseSession.session_quality}/5
+                        </span>
+                        {SESSION_QUALITY_LABELS[todayPulseSession.session_quality] ? (
+                          <span className="text-xs text-[#3C1E38]/55">
+                            {SESSION_QUALITY_LABELS[todayPulseSession.session_quality]}
+                          </span>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
                 ) : todayPulseSession?.started_at ? (
                   <p className="text-xs text-[#3C1E38]/60">
                     Session in progress — Phase {(todayPulseSession.phases_completed?.length ?? 0) + 1} of 6
@@ -298,12 +322,20 @@ export function DashboardClient({
                 )}
               </div>
             </div>
-            <Link href="/app/pulse">
-              <Button size="sm" className="bg-[#3C1E38] hover:bg-[#3C1E38]/90 text-[#F9D57E] border border-[#3C1E38]">
-                {todayPulseSession?.completed_at ? "View session" : todayPulseSession?.started_at ? "Resume" : "Begin Session"}
-                <ArrowRight className="w-3 h-3 ml-1" />
-              </Button>
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link href="/app/prayer">
+                <Button size="sm" variant="outline" className="border-[#B8860B]/40 text-[#3C1E38] hover:bg-[#F9D57E]/20">
+                  <Heart className="w-3 h-3 mr-1" />
+                  Prayer
+                </Button>
+              </Link>
+              <Link href="/app/pulse">
+                <Button size="sm" className="bg-[#3C1E38] hover:bg-[#3C1E38]/90 text-[#F9D57E] border border-[#3C1E38]">
+                  {todayPulseSession?.completed_at ? "View session" : todayPulseSession?.started_at ? "Resume" : "Begin Session"}
+                  <ArrowRight className="w-3 h-3 ml-1" />
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
       )}

@@ -9,7 +9,7 @@ import { SESSION_QUALITY_LABELS } from "@/lib/pulse"
 const PHASE_ORDER = ["setup", "measure", "review", "learn", "plan", "close"] as const
 
 /** Visual stars for “How effective was this planning session?” (1–5). */
-function SessionQualityStars({ rating, size = "md" }: { rating: number; size?: "sm" | "md" }) {
+export function SessionQualityStars({ rating, size = "md" }: { rating: number; size?: "sm" | "md" }) {
   const n = Math.min(5, Math.max(1, Math.round(rating)))
   const starClass = size === "sm" ? "w-3 h-3" : "w-4 h-4"
   return (

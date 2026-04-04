@@ -1,8 +1,9 @@
 "use client"
 
 import Link from "next/link"
-import { CalendarCheck } from "lucide-react"
+import { CalendarCheck, Heart } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { SessionQualityStars } from "@/components/app/pulse/session-history"
 
 interface SessionBannerProps {
   isSunday: boolean
@@ -12,6 +13,8 @@ interface SessionBannerProps {
   dualContextLine?: string
   hasSession: boolean
   sessionComplete: boolean
+  /** 1–5 from Phase 6; shown when the session is complete. */
+  sessionQuality?: number | null
   onBegin: () => void
 }
 
@@ -22,6 +25,7 @@ export function SessionBanner({
   dualContextLine,
   hasSession,
   sessionComplete,
+  sessionQuality = null,
   onBegin,
 }: SessionBannerProps) {
   const nextSunday = (() => {
@@ -54,11 +58,24 @@ export function SessionBanner({
                 </>
               )}
             </p>
+            <Link
+              href="/app/prayer"
+              className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-[#3C1E38]/75 hover:text-[#3C1E38] underline-offset-4 hover:underline"
+            >
+              <Heart className="w-4 h-4 text-[#B8860B]" aria-hidden />
+              Open Prayer Mode
+            </Link>
           </div>
           <div className="flex-shrink-0">
             {sessionComplete ? (
-              <div className="bg-white/60 rounded-xl px-4 py-3 border border-[#3C1E38]/10">
+              <div className="bg-white/60 rounded-xl px-4 py-3 border border-[#3C1E38]/10 space-y-2">
                 <p className="font-medium text-[#3C1E38]">Session complete ✓</p>
+                {sessionQuality != null && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <SessionQualityStars rating={sessionQuality} size="sm" />
+                    <span className="text-xs font-semibold text-[#3C1E38] tabular-nums">{sessionQuality}/5</span>
+                  </div>
+                )}
                 <p className="text-xs text-[#3C1E38]/60">Great stewardship this week</p>
               </div>
             ) : (
@@ -88,6 +105,13 @@ export function SessionBanner({
           <p className="text-sm text-[#3C1E38]/50 mt-1">
             {dualContextLine ?? `Week ${weekNumber} of 13 — ${quarterName}`}
           </p>
+          <Link
+            href="/app/prayer"
+            className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-[#3C1E38]/70 hover:text-[#3C1E38] underline-offset-4 hover:underline"
+          >
+            <Heart className="w-4 h-4 text-[#A7C2D7]" aria-hidden />
+            Open Prayer Mode
+          </Link>
         </div>
         <Button onClick={onBegin} variant="outline" className="border-[#A7C2D7]/40 text-[#3C1E38]">
           Start session anyway
