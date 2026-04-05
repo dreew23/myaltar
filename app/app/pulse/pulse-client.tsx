@@ -41,6 +41,8 @@ type SessionState = {
   phase6_monday_top3: string[]
   session_quality: number | null
   total_duration_minutes: number | null
+  phase1_checklist?: Record<string, boolean> | null
+  phase6_close_checklist?: Record<string, boolean> | null
 }
 
 const PHASE_IDS: PhaseId[] = ["setup", "measure", "review", "learn", "plan", "close"]
@@ -84,6 +86,7 @@ interface PulseClientProps {
   weekNumber: number
   quarterCode: string
   sevenDaysAgoStr: string
+  personalYears: PersonalYearConfigRow[]
 }
 
 function sessionToState(s: PulseSessionRow | null): SessionState | null {
@@ -104,6 +107,8 @@ function sessionToState(s: PulseSessionRow | null): SessionState | null {
     phase6_monday_top3: s.phase6_monday_top3 ?? [],
     session_quality: s.session_quality,
     total_duration_minutes: s.total_duration_minutes,
+    phase1_checklist: s.phase1_checklist ?? null,
+    phase6_close_checklist: s.phase6_close_checklist ?? null,
   }
 }
 
@@ -133,6 +138,7 @@ export function PulseClient(props: PulseClientProps) {
   )
   const [completing, setCompleting] = useState(false)
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null)
+  const [persistError, setPersistError] = useState<string | null>(null)
   const skipPlanPersist = useRef(true)
   /** Only hydrate phase fields from server when switching sessions — refresh() was wiping in-progress edits. */
   const hydratedSessionIdRef = useRef<string | null>(null)
@@ -140,10 +146,17 @@ export function PulseClient(props: PulseClientProps) {
   useEffect(() => {
     skipPlanPersist.current = true
     const row = props.todaySession
-    setSession(sessionToState(row))
     const sid = row?.id ?? null
-    if (row && sid && hydratedSessionIdRef.current !== sid) {
+
+    if (!row || !sid) {
+      hydratedSessionIdRef.current = null
+      setSession(null)
+      return
+    }
+
+    if (hydratedSessionIdRef.current !== sid) {
       hydratedSessionIdRef.current = sid
+      setSession(sessionToState(row))
       setPhase4Time(row.phase4_time_analysis ?? "")
       setPhase4Constraint(row.phase4_constraint_changes ?? "")
       setPhase4Declaration(row.phase4_declaration_reviewed ?? "")
@@ -153,9 +166,28 @@ export function PulseClient(props: PulseClientProps) {
       setSessionStartTime(row.started_at ? new Date(row.started_at).getTime() : null)
       setPhase1Checklist(parseChecklistMap(row.phase1_checklist))
       setPhase6ClosingChecklist(parseChecklistMap(row.phase6_close_checklist))
-    } else if (!row) {
-      hydratedSessionIdRef.current = null
+      return
     }
+
+    // Same session: router.refresh() must not replace the whole row — that was resetting in-progress work.
+    setSession((prev) => {
+      if (!prev || prev.id !== sid) return sessionToState(row)
+      const rowPhases = row.phases_completed ?? []
+      const prevPhases = prev.phases_completed ?? []
+      const phases_completed =
+        rowPhases.length >= prevPhases.length ? rowPhases : prevPhases
+      return {
+        ...prev,
+        completed_at: row.completed_at,
+        phases_completed,
+        phase1_completed: row.phase1_completed ?? prev.phase1_completed,
+        phase2_backfill_count: row.phase2_backfill_count ?? prev.phase2_backfill_count,
+        phase3_pulse_check_id: row.phase3_pulse_check_id ?? prev.phase3_pulse_check_id,
+        session_quality: row.session_quality ?? prev.session_quality,
+        total_duration_minutes: row.total_duration_minutes ?? prev.total_duration_minutes,
+        started_at: row.started_at ?? prev.started_at,
+      }
+    })
   }, [props.todaySession])
 
   const upsertWeeklyGoalsForSession = useCallback(
@@ -193,6 +225,7 @@ export function PulseClient(props: PulseClientProps) {
       const { error } = await supabase.from("pulse_sessions").update(updates).eq("id", session.id)
       if (error) console.error("[Pulse] update error:", error.message)
       else {
+        setPersistError(null)
         setLastSavedAt(Date.now())
         router.refresh()
       }
@@ -205,14 +238,20 @@ export function PulseClient(props: PulseClientProps) {
     async (patch: Record<string, unknown>) => {
       if (!session) return
       const { error } = await supabase.from("pulse_sessions").update(patch).eq("id", session.id)
-      if (error) console.warn("[Pulse] quiet persist:", error.message)
-      else setLastSavedAt(Date.now())
+      if (error) {
+        const msg = error.message
+        console.warn("[Pulse] quiet persist:", msg)
+        setPersistError(msg)
+      } else {
+        setPersistError(null)
+        setLastSavedAt(Date.now())
+      }
     },
     [session, supabase]
   )
 
   useEffect(() => {
-    if (!session?.id || session.completed_at) return
+    if (!session?.id) return
     const t = setTimeout(() => {
       void persistSessionQuiet({
         phase1_checklist: toChecklistJson(phase1Checklist),
@@ -220,7 +259,19 @@ export function PulseClient(props: PulseClientProps) {
       })
     }, 700)
     return () => clearTimeout(t)
-  }, [phase1Checklist, phase6ClosingChecklist, session?.id, session?.completed_at, persistSessionQuiet])
+  }, [phase1Checklist, phase6ClosingChecklist, session?.id, persistSessionQuiet])
+
+  useEffect(() => {
+    if (!session?.id) return
+    const t = setTimeout(() => {
+      void persistSessionQuiet({
+        phase4_time_analysis: phase4Time || null,
+        phase4_constraint_changes: phase4Constraint || null,
+        phase4_declaration_reviewed: phase4Declaration || null,
+      })
+    }, 650)
+    return () => clearTimeout(t)
+  }, [phase4Time, phase4Constraint, phase4Declaration, session?.id, persistSessionQuiet])
 
   useEffect(() => {
     if (mode !== "create" || !session?.id || session.completed_at) return
@@ -595,6 +646,19 @@ export function PulseClient(props: PulseClientProps) {
         />
       )}
 
+      {persistError && (
+        <div className="rounded-lg border border-amber-400/80 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <p className="font-medium">Could not autosave this session</p>
+          <p className="text-xs mt-1 font-mono break-all opacity-90">{persistError}</p>
+          <p className="text-xs mt-2 text-amber-900/80">
+            Often this means the database is missing new columns. Run the migration that adds{" "}
+            <code className="bg-amber-100/80 px-1 rounded">phase1_checklist</code> and{" "}
+            <code className="bg-amber-100/80 px-1 rounded">phase6_close_checklist</code> on{" "}
+            <code className="bg-amber-100/80 px-1 rounded">pulse_sessions</code>.
+          </p>
+        </div>
+      )}
+
       {lastSavedAt !== null && (
         <p className="text-xs text-[#3C1E38]/50 text-right">Last saved: {formatRelativeSaved(lastSavedAt)}</p>
       )}
@@ -674,18 +738,9 @@ export function PulseClient(props: PulseClientProps) {
                   sessionConstraintText={phase4Constraint}
                   sessionDeclarationReviewed={phase4Declaration}
                   declarations={props.declarations}
-                  onTimeAnalysisChange={(v) => {
-                    setPhase4Time(v)
-                    void updateSession({ phase4_time_analysis: v })
-                  }}
-                  onConstraintChange={(v) => {
-                    setPhase4Constraint(v)
-                    void updateSession({ phase4_constraint_changes: v })
-                  }}
-                  onDeclarationReviewedChange={(v) => {
-                    setPhase4Declaration(v)
-                    void updateSession({ phase4_declaration_reviewed: v })
-                  }}
+                  onTimeAnalysisChange={setPhase4Time}
+                  onConstraintChange={setPhase4Constraint}
+                  onDeclarationReviewedChange={setPhase4Declaration}
                 />
               )}
               {phase.id === "plan" && (
@@ -716,7 +771,8 @@ export function PulseClient(props: PulseClientProps) {
                   sessionQuality={sessionQuality}
                   onSessionQualityChange={(n) => {
                     setSessionQuality(n)
-                    void updateSession({ session_quality: n })
+                    setSession((p) => (p ? { ...p, session_quality: n } : null))
+                    void persistSessionQuiet({ session_quality: n })
                   }}
                   onCompleteSession={completeSession}
                   completing={completing}

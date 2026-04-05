@@ -37,11 +37,14 @@ export function PhaseCard({
   }
 
   return (
-    <div className={`rounded-xl border overflow-hidden transition-all ${status === "complete" ? "border-emerald-200 bg-emerald-50/30" : status === "skipped" ? "border-[#A7C2D7]/10 bg-[#FDFCF9]" : "border-[#A7C2D7]/20 bg-white"}`}>
+    <div
+      className={`rounded-xl border transition-all ${status === "complete" ? "border-emerald-200 bg-emerald-50/30" : status === "skipped" ? "border-[#A7C2D7]/10 bg-[#FDFCF9]" : "border-[#A7C2D7]/20 bg-white"} ${expanded ? "ring-2 ring-[#F9D57E]/40" : ""}`}
+    >
       <button
         type="button"
         onClick={onToggle}
-        className="w-full flex items-center gap-4 p-4 text-left hover:bg-[#FDFCF9] transition-colors"
+        className="w-full flex items-center gap-4 p-4 text-left hover:bg-[#FDFCF9]/80 transition-colors"
+        aria-expanded={expanded}
       >
         <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#A7C2D7]/15 text-[#3C1E38] font-playfair font-bold text-sm">
           {phaseNumber}
@@ -53,30 +56,24 @@ export function PhaseCard({
         <span className="flex-shrink-0">{statusIcon()}</span>
         {expanded ? <ChevronDown className="w-4 h-4 text-[#3C1E38]/40" /> : <ChevronRight className="w-4 h-4 text-[#3C1E38]/40" />}
       </button>
-      {/* Grid 0fr/1fr keeps content in layout (not display:none) so inputs/checklists keep state reliably. */}
-      <div
-        className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
-      >
-        <div className="min-h-0 overflow-hidden">
-          <div className="px-4 pb-4 pt-1 border-t border-[#A7C2D7]/10 space-y-4">
-            {children}
-            <div className="flex items-center gap-3 pt-2">
-              {onMarkComplete && status !== "complete" && status !== "skipped" && (
-                <button
-                  type="button"
-                  onClick={onMarkComplete}
-                  className="px-4 py-2 rounded-lg bg-[#A7C2D7]/20 text-[#3C1E38] font-medium text-sm hover:bg-[#A7C2D7]/30 transition-colors"
-                >
-                  Mark Complete
-                </button>
-              )}
-              {onSkip && canSkip && status !== "skipped" && (
-                <button type="button" onClick={onSkip} className="text-xs text-[#3C1E38]/50 hover:text-[#3C1E38]/70 underline">
-                  Skip phase
-                </button>
-              )}
-            </div>
-          </div>
+      {/* Always render body (no collapse / zero-height) — hiding was still losing ticks & inputs for some users. */}
+      <div className="px-4 pb-4 pt-1 border-t border-[#A7C2D7]/10 space-y-4">
+        {children}
+        <div className="flex items-center gap-3 pt-2">
+          {onMarkComplete && status !== "complete" && status !== "skipped" && (
+            <button
+              type="button"
+              onClick={onMarkComplete}
+              className="px-4 py-2 rounded-lg bg-[#A7C2D7]/20 text-[#3C1E38] font-medium text-sm hover:bg-[#A7C2D7]/30 transition-colors"
+            >
+              Mark Complete
+            </button>
+          )}
+          {onSkip && canSkip && status !== "skipped" && (
+            <button type="button" onClick={onSkip} className="text-xs text-[#3C1E38]/50 hover:text-[#3C1E38]/70 underline">
+              Skip phase
+            </button>
+          )}
         </div>
       </div>
     </div>

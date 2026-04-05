@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { ChevronDown, ChevronRight } from "lucide-react"
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 const GOAL_OPTIONS = ["G1", "G2", "G3", "G4", "G5", "G6", "G7"]
@@ -54,7 +53,6 @@ export function Phase5Plan({
     }
     return m
   })
-  const [expandedDay, setExpandedDay] = useState<string | null>(nextWeekFocusDates[0] ?? null)
   const [calendarBlocks, setCalendarBlocks] = useState<Record<string, boolean>>({})
 
   const priorities: string[] = [nextWeekPriorities[0] ?? "", nextWeekPriorities[1] ?? "", nextWeekPriorities[2] ?? ""]
@@ -119,42 +117,28 @@ export function Phase5Plan({
         <p className="font-medium text-[#3C1E38]">Daily focus (Top 3 per day)</p>
         {nextWeekFocusDates.map((date, idx) => {
           const row = focusByDate[date] ?? { focus_1: "", focus_2: "", focus_3: "", goal_1: "", goal_2: "", goal_3: "" }
-          const expanded = expandedDay === date
           const d = new Date(date + "T12:00:00")
           const dayNum = d.getDay()
           const dayLabel = dayNum === 0 ? "Sun" : DAY_LABELS[dayNum - 1] ?? DAY_LABELS[idx]
           return (
-            <div key={date} className="border border-[#A7C2D7]/10 rounded-lg overflow-hidden">
-              <button
-                type="button"
-                onClick={() => setExpandedDay(expanded ? null : date)}
-                className="w-full flex items-center gap-2 p-3 text-left text-sm font-medium text-[#3C1E38]"
-              >
-                {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            <div key={date} className="border border-[#A7C2D7]/10 rounded-lg p-3 space-y-2">
+              <p className="text-sm font-medium text-[#3C1E38]">
                 {dayLabel} {d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-              </button>
-              <div
-                className={`grid transition-[grid-template-rows] duration-200 ease-in-out border-t border-[#A7C2D7]/10 ${expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
-              >
-                <div className="min-h-0 overflow-hidden">
-                  <div className="p-3 pt-0 space-y-2">
-                    {[1, 2, 3].map((n) => (
-                      <input
-                        key={n}
-                        type="text"
-                        value={row[`focus_${n}` as keyof FocusRow] ?? ""}
-                        onChange={(e) => {
-                          const next = { ...row, [`focus_${n}`]: e.target.value }
-                          setFocusByDate((p) => ({ ...p, [date]: next }))
-                          onDailyFocusChange(date, next)
-                        }}
-                        placeholder={`Focus ${n}`}
-                        className="w-full px-3 py-2 border border-[#A7C2D7]/20 rounded text-sm"
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
+              </p>
+              {[1, 2, 3].map((n) => (
+                <input
+                  key={n}
+                  type="text"
+                  value={row[`focus_${n}` as keyof FocusRow] ?? ""}
+                  onChange={(e) => {
+                    const next = { ...row, [`focus_${n}`]: e.target.value }
+                    setFocusByDate((p) => ({ ...p, [date]: next }))
+                    onDailyFocusChange(date, next)
+                  }}
+                  placeholder={`Focus ${n}`}
+                  className="w-full px-3 py-2 border border-[#A7C2D7]/20 rounded text-sm"
+                />
+              ))}
             </div>
           )
         })}
