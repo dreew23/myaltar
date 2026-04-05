@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import Link from "next/link"
 import { Flame, Headphones, Crown, Heart, Scale, Users, Target } from "lucide-react"
 import type { GoalConfig } from "@/lib/data/dominion"
@@ -74,28 +74,46 @@ export function Phase3Review({
     G7: `Insights captured: ${weekStats.downloadsCount} this week`,
   }
 
-  const handleSave = async () => {
-    setSaving(true)
-    const row: Record<string, unknown> = {
-      week_number: weekNumber,
-      date: pulseCheckDate,
-      quarter_code: quarterCode,
-      overall_reflection: overallReflection || null,
-      g3_dominion: dominionScore,
-    }
-    for (const goal of goals) {
-      const a = answers[goal.id]
-      if (goal.pulseType === "scale") {
-        row[goal.dbField] = a && "value" in a ? a.value : null
-      } else {
-        row[goal.dbField] = a && "response" in a ? a.response : null
+  const handleSave = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!opts?.silent) setSaving(true)
+      const row: Record<string, unknown> = {
+        week_number: weekNumber,
+        date: pulseCheckDate,
+        quarter_code: quarterCode,
+        overall_reflection: overallReflection || null,
+        g3_dominion: dominionScore,
       }
-      row[`${goal.dbField}_note`] = a?.note || null
+      for (const goal of goals) {
+        const a = answers[goal.id]
+        if (goal.pulseType === "scale") {
+          row[goal.dbField] = a && "value" in a ? a.value : null
+        } else {
+          row[goal.dbField] = a && "response" in a ? a.response : null
+        }
+        row[`${goal.dbField}_note`] = a?.note || null
+      }
+      const id = await onSavePulseCheck(row)
+      if (id) setSavedId(id)
+      if (!opts?.silent) setSaving(false)
+    },
+    [answers, overallReflection, dominionScore, goals, weekNumber, pulseCheckDate, quarterCode, onSavePulseCheck]
+  )
+
+  const saveRef = useRef(handleSave)
+  saveRef.current = handleSave
+  const skipAutoSaveAfterMount = useRef(true)
+
+  useEffect(() => {
+    if (skipAutoSaveAfterMount.current) {
+      skipAutoSaveAfterMount.current = false
+      return
     }
-    const id = await onSavePulseCheck(row)
-    if (id) setSavedId(id)
-    setSaving(false)
-  }
+    const t = setTimeout(() => {
+      void saveRef.current({ silent: true })
+    }, 2000)
+    return () => clearTimeout(t)
+  }, [answers, overallReflection, dominionScore])
 
   return (
     <div className="space-y-6">
@@ -157,12 +175,13 @@ export function Phase3Review({
       <div className="flex items-center gap-3">
         <button
           type="button"
-          onClick={handleSave}
+          onClick={() => void handleSave()}
           disabled={saving}
           className="px-4 py-2 rounded-lg bg-[#A7C2D7]/30 text-[#3C1E38] font-medium text-sm hover:bg-[#A7C2D7]/40 disabled:opacity-50"
         >
           {saving ? "Saving..." : savedId ? "Pulse check saved ✓" : "Save Pulse Check"}
         </button>
+        <p className="text-[10px] text-[#3C1E38]/40">Also auto-saves a few seconds after you stop editing.</p>
         {savedId && <span className="text-xs text-emerald-600">Linked to this session</span>}
       </div>
 

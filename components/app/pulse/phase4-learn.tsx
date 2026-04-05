@@ -1,10 +1,47 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { TIME_CATEGORIES, CONSTRAINT_CHIPS } from "@/lib/pulse"
 
+function defaultHours(): Record<string, number> {
+  return Object.fromEntries(TIME_CATEGORIES.map((c) => [c.key, 0]))
+}
+
+function parseHoursJson(s: string | null | undefined): Record<string, number> | null {
+  if (!s?.trim()) return null
+  try {
+    const o = JSON.parse(s) as Record<string, number>
+    if (o && typeof o === "object") return o
+  } catch {
+    /* ignore */
+  }
+  return null
+}
+
+function deriveConstraintUi(saved: string | null | undefined): { chip: string | null; details: string } {
+  if (!saved?.trim()) return { chip: null, details: "" }
+  for (const c of CONSTRAINT_CHIPS) {
+    if (saved === c) return { chip: c, details: "" }
+    if (saved.startsWith(c + ". ") || saved.startsWith(c + ".")) {
+      return { chip: c, details: saved.slice(c.length).replace(/^\.?\s*/, "") }
+    }
+  }
+  return { chip: null, details: saved }
+}
+
+function declarationPreview(full: string | null | undefined): string | null {
+  if (!full?.trim()) return null
+  const i = full.indexOf(" — ")
+  return i >= 0 ? full.slice(0, i) : full
+}
+
 interface Phase4LearnProps {
+  /** This session's saved `phase4_time_analysis` JSON (authoritative for the hour grid). */
+  sessionTimeAnalysisJson: string
+  /** Prior session's time JSON — hint text only, not used to overwrite current session hours. */
   lastWeekTimeAnalysis: string | null
+  sessionConstraintText: string | null
+  sessionDeclarationReviewed: string | null
   declarations: { id: string; content: string; scripture_reference: string }[]
   onTimeAnalysisChange: (json: string) => void
   onConstraintChange: (text: string) => void
@@ -12,22 +49,45 @@ interface Phase4LearnProps {
 }
 
 export function Phase4Learn({
+  sessionTimeAnalysisJson,
   lastWeekTimeAnalysis,
+  sessionConstraintText,
+  sessionDeclarationReviewed,
   declarations,
   onTimeAnalysisChange,
   onConstraintChange,
   onDeclarationReviewedChange,
 }: Phase4LearnProps) {
   const [hours, setHours] = useState<Record<string, number>>(() => {
-    try {
-      if (lastWeekTimeAnalysis) return JSON.parse(lastWeekTimeAnalysis) as Record<string, number>
-    } catch {}
-    return Object.fromEntries(TIME_CATEGORIES.map((c) => [c.key, 0]))
+    return (
+      parseHoursJson(sessionTimeAnalysisJson) ??
+      parseHoursJson(lastWeekTimeAnalysis) ??
+      defaultHours()
+    )
   })
-  const [constraintChip, setConstraintChip] = useState<string | null>(null)
-  const [constraintDetails, setConstraintDetails] = useState("")
+
+  const initialConstraint = useMemo(() => deriveConstraintUi(sessionConstraintText), [sessionConstraintText])
+  const [constraintChip, setConstraintChip] = useState<string | null>(() => initialConstraint.chip)
+  const [constraintDetails, setConstraintDetails] = useState(() => initialConstraint.details)
   const [deprioritize, setDeprioritize] = useState("")
-  const [reviewedDeclaration, setReviewedDeclaration] = useState<string | null>(null)
+  const [reviewedDeclaration, setReviewedDeclaration] = useState<string | null>(() =>
+    declarationPreview(sessionDeclarationReviewed)
+  )
+
+  useEffect(() => {
+    const parsed = parseHoursJson(sessionTimeAnalysisJson)
+    if (parsed) setHours(parsed)
+  }, [sessionTimeAnalysisJson])
+
+  useEffect(() => {
+    const { chip, details } = deriveConstraintUi(sessionConstraintText)
+    setConstraintChip(chip)
+    setConstraintDetails(details)
+  }, [sessionConstraintText])
+
+  useEffect(() => {
+    setReviewedDeclaration(declarationPreview(sessionDeclarationReviewed))
+  }, [sessionDeclarationReviewed])
 
   const totalHours = Object.values(hours).reduce((a, b) => a + b, 0)
 
@@ -45,8 +105,11 @@ export function Phase4Learn({
     <div className="space-y-6">
       <p className="text-sm text-[#3C1E38]/70">Before planning next week, analyze patterns. Where did your time actually go?</p>
 
-      {lastWeekTimeAnalysis && (
-        <p className="text-xs text-[#3C1E38]/50">Last week: {lastWeekTimeAnalysis.slice(0, 80)}…</p>
+      {lastWeekTimeAnalysis && lastWeekTimeAnalysis !== sessionTimeAnalysisJson && (
+        <p className="text-xs text-[#3C1E38]/50">
+          Reference — previous session time snapshot: {lastWeekTimeAnalysis.slice(0, 120)}
+          {lastWeekTimeAnalysis.length > 120 ? "…" : ""}
+        </p>
       )}
 
       <div className="rounded-lg border border-[#A7C2D7]/20 p-4 space-y-3">
@@ -75,18 +138,18 @@ export function Phase4Learn({
       </div>
 
       <div className="rounded-lg border border-[#A7C2D7]/20 p-4 space-y-3">
-        <p className="font-medium text-[#3C1E38]">What's different about next week?</p>
+        <p className="font-medium text-[#3C1E38]">What&apos;s different about next week?</p>
         <div className="flex flex-wrap gap-2">
           {CONSTRAINT_CHIPS.map((c) => (
             <button
               key={c}
               type="button"
-            onClick={() => {
-              const nextChip = constraintChip === c ? null : c
-              setConstraintChip(nextChip)
-              const text = nextChip ? nextChip + (constraintDetails ? ". " + constraintDetails : "") : constraintDetails
-              onConstraintChange(text)
-            }}
+              onClick={() => {
+                const nextChip = constraintChip === c ? null : c
+                setConstraintChip(nextChip)
+                const text = nextChip ? nextChip + (constraintDetails ? ". " + constraintDetails : "") : constraintDetails
+                onConstraintChange(text)
+              }}
               className={`px-3 py-1.5 rounded-full text-sm ${constraintChip === c ? "bg-[#A7C2D7]/30 text-[#3C1E38]" : "bg-[#FDFCF9] border border-[#A7C2D7]/20 text-[#3C1E38]/70"}`}
             >
               {c}

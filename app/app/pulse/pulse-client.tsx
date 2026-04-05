@@ -127,12 +127,16 @@ export function PulseClient(props: PulseClientProps) {
   const [completing, setCompleting] = useState(false)
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null)
   const skipPlanPersist = useRef(true)
+  /** Only hydrate phase fields from server when switching sessions — refresh() was wiping in-progress edits. */
+  const hydratedSessionIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     skipPlanPersist.current = true
-    setSession(sessionToState(props.todaySession))
     const row = props.todaySession
-    if (row) {
+    setSession(sessionToState(row))
+    const sid = row?.id ?? null
+    if (row && sid && hydratedSessionIdRef.current !== sid) {
+      hydratedSessionIdRef.current = sid
       setPhase4Time(row.phase4_time_analysis ?? "")
       setPhase4Constraint(row.phase4_constraint_changes ?? "")
       setPhase4Declaration(row.phase4_declaration_reviewed ?? "")
@@ -140,6 +144,8 @@ export function PulseClient(props: PulseClientProps) {
       setMondayTop3(row.phase6_monday_top3 ?? [])
       setSessionQuality(row.session_quality ?? null)
       setSessionStartTime(row.started_at ? new Date(row.started_at).getTime() : null)
+    } else if (!row) {
+      hydratedSessionIdRef.current = null
     }
   }, [props.todaySession])
 
@@ -599,7 +605,10 @@ export function PulseClient(props: PulseClientProps) {
               )}
               {phase.id === "learn" && (
                 <Phase4Learn
+                  sessionTimeAnalysisJson={phase4Time}
                   lastWeekTimeAnalysis={props.lastWeekTimeAnalysis}
+                  sessionConstraintText={phase4Constraint}
+                  sessionDeclarationReviewed={phase4Declaration}
                   declarations={props.declarations}
                   onTimeAnalysisChange={(v) => {
                     setPhase4Time(v)

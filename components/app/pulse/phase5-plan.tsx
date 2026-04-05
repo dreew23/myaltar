@@ -38,7 +38,6 @@ export function Phase5Plan({
   onDailyFocusChange,
   onMondayTop3Change,
 }: Phase5PlanProps) {
-  const [priorities, setPriorities] = useState<string[]>(nextWeekPriorities.length >= 3 ? nextWeekPriorities : ["", "", ""])
   const [priorityGoals, setPriorityGoals] = useState<string[]>(["", "", ""])
   const [focusByDate, setFocusByDate] = useState<Record<string, FocusRow>>(() => {
     const m: Record<string, FocusRow> = {}
@@ -56,13 +55,13 @@ export function Phase5Plan({
     return m
   })
   const [expandedDay, setExpandedDay] = useState<string | null>(nextWeekFocusDates[0] ?? null)
-  const [mondayTop3Local, setMondayTop3Local] = useState<string[]>(mondayTop3.length >= 3 ? mondayTop3 : ["", "", ""])
   const [calendarBlocks, setCalendarBlocks] = useState<Record<string, boolean>>({})
 
+  const priorities: string[] = [nextWeekPriorities[0] ?? "", nextWeekPriorities[1] ?? "", nextWeekPriorities[2] ?? ""]
+
   const updatePriority = (i: number, v: string) => {
-    const next = [...priorities]
+    const next: string[] = [priorities[0] ?? "", priorities[1] ?? "", priorities[2] ?? ""]
     next[i] = v
-    setPriorities(next)
     onNextWeekFocusChange(next)
   }
 
@@ -134,24 +133,22 @@ export function Phase5Plan({
                 {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                 {dayLabel} {d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
               </button>
-              {expanded && (
-                <div className="p-3 pt-0 space-y-2 border-t border-[#A7C2D7]/10">
-                  {[1, 2, 3].map((n) => (
-                    <input
-                      key={n}
-                      type="text"
-                      value={row[`focus_${n}` as keyof FocusRow] ?? ""}
-                      onChange={(e) => {
-                        const next = { ...row, [`focus_${n}`]: e.target.value }
-                        setFocusByDate((p) => ({ ...p, [date]: next }))
-                        onDailyFocusChange(date, next)
-                      }}
-                      placeholder={`Focus ${n}`}
-                      className="w-full px-3 py-2 border border-[#A7C2D7]/20 rounded text-sm"
-                    />
-                  ))}
-                </div>
-              )}
+              <div className={`p-3 pt-0 space-y-2 border-t border-[#A7C2D7]/10 ${expanded ? "" : "hidden"}`}>
+                {[1, 2, 3].map((n) => (
+                  <input
+                    key={n}
+                    type="text"
+                    value={row[`focus_${n}` as keyof FocusRow] ?? ""}
+                    onChange={(e) => {
+                      const next = { ...row, [`focus_${n}`]: e.target.value }
+                      setFocusByDate((p) => ({ ...p, [date]: next }))
+                      onDailyFocusChange(date, next)
+                    }}
+                    placeholder={`Focus ${n}`}
+                    className="w-full px-3 py-2 border border-[#A7C2D7]/20 rounded text-sm"
+                  />
+                ))}
+              </div>
             </div>
           )
         })}
@@ -179,11 +176,10 @@ export function Phase5Plan({
           <input
             key={i}
             type="text"
-            value={mondayTop3Local[i] ?? ""}
+            value={mondayTop3[i] ?? ""}
             onChange={(e) => {
-              const next = [...mondayTop3Local]
+              const next: string[] = [mondayTop3[0] ?? "", mondayTop3[1] ?? "", mondayTop3[2] ?? ""]
               next[i] = e.target.value
-              setMondayTop3Local(next)
               onMondayTop3Change(next)
             }}
             placeholder={`Monday focus ${i + 1}`}
