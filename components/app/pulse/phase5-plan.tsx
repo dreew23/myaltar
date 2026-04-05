@@ -133,21 +133,27 @@ export function Phase5Plan({
                 {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                 {dayLabel} {d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
               </button>
-              <div className={`p-3 pt-0 space-y-2 border-t border-[#A7C2D7]/10 ${expanded ? "" : "hidden"}`}>
-                {[1, 2, 3].map((n) => (
-                  <input
-                    key={n}
-                    type="text"
-                    value={row[`focus_${n}` as keyof FocusRow] ?? ""}
-                    onChange={(e) => {
-                      const next = { ...row, [`focus_${n}`]: e.target.value }
-                      setFocusByDate((p) => ({ ...p, [date]: next }))
-                      onDailyFocusChange(date, next)
-                    }}
-                    placeholder={`Focus ${n}`}
-                    className="w-full px-3 py-2 border border-[#A7C2D7]/20 rounded text-sm"
-                  />
-                ))}
+              <div
+                className={`grid transition-[grid-template-rows] duration-200 ease-in-out border-t border-[#A7C2D7]/10 ${expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
+              >
+                <div className="min-h-0 overflow-hidden">
+                  <div className="p-3 pt-0 space-y-2">
+                    {[1, 2, 3].map((n) => (
+                      <input
+                        key={n}
+                        type="text"
+                        value={row[`focus_${n}` as keyof FocusRow] ?? ""}
+                        onChange={(e) => {
+                          const next = { ...row, [`focus_${n}`]: e.target.value }
+                          setFocusByDate((p) => ({ ...p, [date]: next }))
+                          onDailyFocusChange(date, next)
+                        }}
+                        placeholder={`Focus ${n}`}
+                        className="w-full px-3 py-2 border border-[#A7C2D7]/20 rounded text-sm"
+                      />
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           )

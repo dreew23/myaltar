@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState } from "react"
 import { TIME_CATEGORIES, CONSTRAINT_CHIPS } from "@/lib/pulse"
 
 function defaultHours(): Record<string, number> {
@@ -38,7 +38,7 @@ function declarationPreview(full: string | null | undefined): string | null {
 interface Phase4LearnProps {
   /** This session's saved `phase4_time_analysis` JSON (authoritative for the hour grid). */
   sessionTimeAnalysisJson: string
-  /** Prior session's time JSON — hint text only, not used to overwrite current session hours. */
+  /** Prior session's time JSON — hint text only. */
   lastWeekTimeAnalysis: string | null
   sessionConstraintText: string | null
   sessionDeclarationReviewed: string | null
@@ -58,6 +58,7 @@ export function Phase4Learn({
   onConstraintChange,
   onDeclarationReviewedChange,
 }: Phase4LearnProps) {
+  const initConstraint = deriveConstraintUi(sessionConstraintText)
   const [hours, setHours] = useState<Record<string, number>>(() => {
     return (
       parseHoursJson(sessionTimeAnalysisJson) ??
@@ -65,29 +66,12 @@ export function Phase4Learn({
       defaultHours()
     )
   })
-
-  const initialConstraint = useMemo(() => deriveConstraintUi(sessionConstraintText), [sessionConstraintText])
-  const [constraintChip, setConstraintChip] = useState<string | null>(() => initialConstraint.chip)
-  const [constraintDetails, setConstraintDetails] = useState(() => initialConstraint.details)
+  const [constraintChip, setConstraintChip] = useState<string | null>(() => initConstraint.chip)
+  const [constraintDetails, setConstraintDetails] = useState(() => initConstraint.details)
   const [deprioritize, setDeprioritize] = useState("")
   const [reviewedDeclaration, setReviewedDeclaration] = useState<string | null>(() =>
     declarationPreview(sessionDeclarationReviewed)
   )
-
-  useEffect(() => {
-    const parsed = parseHoursJson(sessionTimeAnalysisJson)
-    if (parsed) setHours(parsed)
-  }, [sessionTimeAnalysisJson])
-
-  useEffect(() => {
-    const { chip, details } = deriveConstraintUi(sessionConstraintText)
-    setConstraintChip(chip)
-    setConstraintDetails(details)
-  }, [sessionConstraintText])
-
-  useEffect(() => {
-    setReviewedDeclaration(declarationPreview(sessionDeclarationReviewed))
-  }, [sessionDeclarationReviewed])
 
   const totalHours = Object.values(hours).reduce((a, b) => a + b, 0)
 

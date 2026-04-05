@@ -13,14 +13,15 @@ const CHECKLIST_ITEMS = [
 ]
 
 interface Phase1SetupProps {
+  checklist: Record<number, boolean>
+  onChecklistChange: (next: Record<number, boolean>) => void
   spiritualSeasonReminder?: string | null
 }
 
-export function Phase1Setup({ spiritualSeasonReminder }: Phase1SetupProps) {
-  const [checklist, setChecklist] = useState<Record<number, boolean>>({})
+export function Phase1Setup({ checklist, onChecklistChange, spiritualSeasonReminder }: Phase1SetupProps) {
   const [prayerOpen, setPrayerOpen] = useState(true)
 
-  const toggle = (i: number) => setChecklist((p) => ({ ...p, [i]: !p[i] }))
+  const toggle = (i: number) => onChecklistChange({ ...checklist, [i]: !checklist[i] })
 
   return (
     <div className="space-y-4">
@@ -48,11 +49,11 @@ export function Phase1Setup({ spiritualSeasonReminder }: Phase1SetupProps) {
         >
           {prayerOpen ? "▾" : "▸"} Opening prayer
         </button>
-        {prayerOpen && (
+        {prayerOpen ? (
           <blockquote className="font-garamond text-base italic text-[#3C1E38]/80 mt-2 pl-4 border-l-2 border-[#A7C2D7]/40 py-2">
             {OPENING_PRAYER}
           </blockquote>
-        )}
+        ) : null}
       </div>
 
       {spiritualSeasonReminder && (

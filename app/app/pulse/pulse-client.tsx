@@ -15,6 +15,7 @@ import { Phase6Close } from "@/components/app/pulse/phase6-close"
 import { SessionHistory } from "@/components/app/pulse/session-history"
 import type { GoalConfig } from "@/lib/data/dominion"
 import { PHASES, type PhaseId, type PulseSessionRow } from "@/lib/pulse"
+import { parseChecklistMap, toChecklistJson } from "@/lib/pulse-checklists"
 import { findSessionForWeek, getRecentSundays, toLocalISODate } from "@/lib/pulse-session-dates"
 import type { PersonalYearConfigRow } from "@/lib/personal-year"
 import {
@@ -121,6 +122,12 @@ export function PulseClient(props: PulseClientProps) {
   const [nextWeekFocus, setNextWeekFocus] = useState<string[]>(props.todaySession?.phase5_next_week_focus ?? [])
   const [mondayTop3, setMondayTop3] = useState<string[]>(props.todaySession?.phase6_monday_top3 ?? [])
   const [sessionQuality, setSessionQuality] = useState<number | null>(props.todaySession?.session_quality ?? null)
+  const [phase1Checklist, setPhase1Checklist] = useState<Record<number, boolean>>(() =>
+    parseChecklistMap(props.todaySession?.phase1_checklist)
+  )
+  const [phase6ClosingChecklist, setPhase6ClosingChecklist] = useState<Record<number, boolean>>(() =>
+    parseChecklistMap(props.todaySession?.phase6_close_checklist)
+  )
   const [sessionStartTime, setSessionStartTime] = useState<number | null>(
     session?.started_at ? new Date(session.started_at).getTime() : null
   )
@@ -144,6 +151,8 @@ export function PulseClient(props: PulseClientProps) {
       setMondayTop3(row.phase6_monday_top3 ?? [])
       setSessionQuality(row.session_quality ?? null)
       setSessionStartTime(row.started_at ? new Date(row.started_at).getTime() : null)
+      setPhase1Checklist(parseChecklistMap(row.phase1_checklist))
+      setPhase6ClosingChecklist(parseChecklistMap(row.phase6_close_checklist))
     } else if (!row) {
       hydratedSessionIdRef.current = null
     }
@@ -191,6 +200,42 @@ export function PulseClient(props: PulseClientProps) {
     [session, supabase, router]
   )
 
+  /** Persist without router.refresh — avoids RSC churn resetting in-progress UI. */
+  const persistSessionQuiet = useCallback(
+    async (patch: Record<string, unknown>) => {
+      if (!session) return
+      const { error } = await supabase.from("pulse_sessions").update(patch).eq("id", session.id)
+      if (error) console.warn("[Pulse] quiet persist:", error.message)
+      else setLastSavedAt(Date.now())
+    },
+    [session, supabase]
+  )
+
+  useEffect(() => {
+    if (!session?.id || session.completed_at) return
+    const t = setTimeout(() => {
+      void persistSessionQuiet({
+        phase1_checklist: toChecklistJson(phase1Checklist),
+        phase6_close_checklist: toChecklistJson(phase6ClosingChecklist),
+      })
+    }, 700)
+    return () => clearTimeout(t)
+  }, [phase1Checklist, phase6ClosingChecklist, session?.id, session?.completed_at, persistSessionQuiet])
+
+  useEffect(() => {
+    if (mode !== "create" || !session?.id || session.completed_at) return
+    const t = setTimeout(() => {
+      void persistSessionQuiet({
+        phase5_next_week_focus: nextWeekFocus,
+        phase6_monday_top3: mondayTop3,
+      })
+      setSession((p) =>
+        p ? { ...p, phase5_next_week_focus: nextWeekFocus, phase6_monday_top3: mondayTop3 } : null
+      )
+    }, 600)
+    return () => clearTimeout(t)
+  }, [nextWeekFocus, mondayTop3, mode, session?.id, session?.completed_at, persistSessionQuiet])
+
   const beginSession = useCallback(async () => {
     if (session) {
       setSessionStartTime(session.started_at ? new Date(session.started_at).getTime() : Date.now())
@@ -237,14 +282,24 @@ export function PulseClient(props: PulseClientProps) {
     async (phaseId: PhaseId) => {
       if (!session) return
       const next = [...(session.phases_completed ?? []), phaseId]
-      if (phaseId === "setup") await updateSession({ phases_completed: next, phase1_completed: true })
+      if (phaseId === "setup")
+        await updateSession({
+          phases_completed: next,
+          phase1_completed: true,
+          phase1_checklist: toChecklistJson(phase1Checklist),
+        })
       else if (phaseId === "measure") await updateSession({ phases_completed: next })
       else if (phaseId === "review") await updateSession({ phases_completed: next })
       else if (phaseId === "learn") await updateSession({ phases_completed: next })
       else if (phaseId === "plan") {
         await updateSession({ phases_completed: next, phase5_next_week_focus: nextWeekFocus, phase6_monday_top3: mondayTop3 })
         await upsertWeeklyGoalsForSession(nextWeekFocus, session.date)
-      } else await updateSession({ phases_completed: next, session_quality: sessionQuality })
+      } else
+        await updateSession({
+          phases_completed: next,
+          session_quality: sessionQuality,
+          phase6_close_checklist: toChecklistJson(phase6ClosingChecklist),
+        })
       setSession((p) => (p ? { ...p, phases_completed: next } : null))
       const nextExpanded = PHASE_IDS.find((id) => !next.includes(id) && !skippedPhases.has(id))
       setExpandedPhase(nextExpanded ?? null)
@@ -257,6 +312,8 @@ export function PulseClient(props: PulseClientProps) {
       sessionQuality,
       skippedPhases,
       upsertWeeklyGoalsForSession,
+      phase1Checklist,
+      phase6ClosingChecklist,
     ]
   )
 
@@ -336,6 +393,8 @@ export function PulseClient(props: PulseClientProps) {
       phase4_time_analysis: phase4Time || null,
       phase4_constraint_changes: phase4Constraint || null,
       phase4_declaration_reviewed: phase4Declaration || null,
+      phase1_checklist: toChecklistJson(phase1Checklist),
+      phase6_close_checklist: toChecklistJson(phase6ClosingChecklist),
     }
 
     if (session.completed_at) {
@@ -367,6 +426,8 @@ export function PulseClient(props: PulseClientProps) {
     phase4Time,
     phase4Constraint,
     phase4Declaration,
+    phase1Checklist,
+    phase6ClosingChecklist,
     props.userId,
     supabase,
     router,
@@ -566,7 +627,9 @@ export function PulseClient(props: PulseClientProps) {
               onSkip={() => skipPhase(phase.id)}
               canSkip={true}
             >
-              {phase.id === "setup" && <Phase1Setup />}
+              {phase.id === "setup" && (
+                <Phase1Setup checklist={phase1Checklist} onChecklistChange={setPhase1Checklist} />
+              )}
               {phase.id === "measure" && (
                 <Phase2Measure
                   sevenDaysAgoStr={props.sevenDaysAgoStr}
@@ -603,8 +666,9 @@ export function PulseClient(props: PulseClientProps) {
                   dualContextLine={dualContextLine}
                 />
               )}
-              {phase.id === "learn" && (
+              {phase.id === "learn" && session && (
                 <Phase4Learn
+                  key={session.id}
                   sessionTimeAnalysisJson={phase4Time}
                   lastWeekTimeAnalysis={props.lastWeekTimeAnalysis}
                   sessionConstraintText={phase4Constraint}
@@ -647,6 +711,8 @@ export function PulseClient(props: PulseClientProps) {
                   constraintNoted={phase4Constraint}
                   nextWeekPriorities={nextWeekFocus}
                   mondayTop3={mondayTop3}
+                  closingChecklist={phase6ClosingChecklist}
+                  onClosingChecklistChange={setPhase6ClosingChecklist}
                   sessionQuality={sessionQuality}
                   onSessionQualityChange={(n) => {
                     setSessionQuality(n)

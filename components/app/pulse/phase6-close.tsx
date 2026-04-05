@@ -20,6 +20,8 @@ interface Phase6CloseProps {
   constraintNoted?: string
   nextWeekPriorities: string[]
   mondayTop3: string[]
+  closingChecklist: Record<number, boolean>
+  onClosingChecklistChange: (next: Record<number, boolean>) => void
   sessionQuality: number | null
   onSessionQualityChange: (n: number) => void
   onCompleteSession: () => void
@@ -36,23 +38,24 @@ export function Phase6Close({
   constraintNoted,
   nextWeekPriorities,
   mondayTop3,
+  closingChecklist,
+  onClosingChecklistChange,
   sessionQuality,
   onSessionQualityChange,
   onCompleteSession,
   completing,
   sessionAlreadyComplete = false,
 }: Phase6CloseProps) {
-  const [checklist, setChecklist] = useState<Record<number, boolean>>({})
   const [prayerOpen, setPrayerOpen] = useState(true)
 
-  const toggle = (i: number) => setChecklist((p) => ({ ...p, [i]: !p[i] }))
+  const toggle = (i: number) => onClosingChecklistChange({ ...closingChecklist, [i]: !closingChecklist[i] })
   const h = Math.floor(sessionDurationMinutes / 60)
   const m = sessionDurationMinutes % 60
   const durationStr = h > 0 ? `${h}h ${m}m` : `${m} min`
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-[#3C1E38]/70">Clean close. Don't let the planning session bleed into the rest of Sunday.</p>
+      <p className="text-sm text-[#3C1E38]/70">Clean close. Don&apos;t let the planning session bleed into the rest of Sunday.</p>
 
       <ul className="space-y-2">
         {CLOSE_CHECKLIST.map((label, i) => (
@@ -60,9 +63,9 @@ export function Phase6Close({
             <button
               type="button"
               onClick={() => toggle(i)}
-              className={`flex items-center gap-3 w-full p-3 rounded-lg border text-left text-sm transition-all ${checklist[i] ? "bg-emerald-50 border-emerald-200" : "border-[#A7C2D7]/20 hover:border-[#A7C2D7]/40"}`}
+              className={`flex items-center gap-3 w-full p-3 rounded-lg border text-left text-sm transition-all ${closingChecklist[i] ? "bg-emerald-50 border-emerald-200" : "border-[#A7C2D7]/20 hover:border-[#A7C2D7]/40"}`}
             >
-              {checklist[i] ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <Circle className="w-4 h-4 text-[#3C1E38]/40" />}
+              {closingChecklist[i] ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <Circle className="w-4 h-4 text-[#3C1E38]/40" />}
               <span>{label}</span>
             </button>
           </li>
@@ -73,11 +76,11 @@ export function Phase6Close({
         <button type="button" onClick={() => setPrayerOpen(!prayerOpen)} className="text-xs font-medium text-[#3C1E38]/60">
           {prayerOpen ? "▾" : "▸"} Closing prayer
         </button>
-        {prayerOpen && (
+        {prayerOpen ? (
           <blockquote className="font-garamond text-sm italic text-[#3C1E38]/80 mt-2 pl-4 border-l-2 border-[#A7C2D7]/40 py-2">
             {CLOSING_PRAYER}
           </blockquote>
-        )}
+        ) : null}
       </div>
 
       <div className="rounded-lg border border-[#A7C2D7]/20 p-4 space-y-3">
@@ -105,7 +108,7 @@ export function Phase6Close({
           {pulseSummary && <li>Pulse check: {pulseSummary}</li>}
           <li>Constraint noted: {constraintNoted || "None"}</li>
           <li>Next week top 3: {nextWeekPriorities.filter(Boolean).join(", ") || "—"}</li>
-          <li>Monday's top 3: {mondayTop3.filter(Boolean).join(", ") || "—"}</li>
+          <li>Monday&apos;s top 3: {mondayTop3.filter(Boolean).join(", ") || "—"}</li>
         </ul>
       </div>
 

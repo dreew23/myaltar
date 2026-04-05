@@ -22,6 +22,8 @@ export interface PulseSessionRow {
   phases_completed: string[] | null
   total_duration_minutes: number | null
   phase1_completed: boolean | null
+  /** JSON object: string index -> boolean (column may be absent until migration). */
+  phase1_checklist?: Record<string, boolean> | null
   phase2_backfill_count: number | null
   phase3_pulse_check_id: string | null
   phase4_time_analysis: string | null
@@ -30,6 +32,7 @@ export interface PulseSessionRow {
   phase5_weekly_plan_notes: string | null
   phase5_next_week_focus: string[] | null
   phase6_monday_top3: string[] | null
+  phase6_close_checklist?: Record<string, boolean> | null
   overall_session_notes: string | null
   session_quality: number | null
   created_at: string

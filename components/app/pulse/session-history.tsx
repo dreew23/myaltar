@@ -31,14 +31,39 @@ export function SessionQualityStars({ rating, size = "md" }: { rating: number; s
   )
 }
 
+function hasChecklistData(raw: Record<string, boolean> | null | undefined) {
+  return Boolean(raw && typeof raw === "object" && Object.keys(raw).length > 0)
+}
+
+function checklistDoneLine(label: string, raw: Record<string, boolean> | null | undefined, expectedSlots: number) {
+  if (!raw || typeof raw !== "object") return null
+  const keys = Object.keys(raw)
+  if (keys.length === 0) return null
+  const done = Object.values(raw).filter(Boolean).length
+  const total = Math.max(expectedSlots, keys.length)
+  return (
+    <div>
+      <p className="text-xs font-medium text-[#3C1E38]/50 uppercase tracking-wide">{label}</p>
+      <p className="mt-1 text-sm text-[#3C1E38]/80">
+        {done}/{total} items checked
+      </p>
+    </div>
+  )
+}
+
 function CompletedSessionSummary({ s }: { s: PulseSessionRow }) {
   const priorities = s.phase5_next_week_focus?.filter(Boolean) ?? []
   const monday = s.phase6_monday_top3?.filter(Boolean) ?? []
   const constraint = s.phase4_constraint_changes?.trim()
   const notes = s.overall_session_notes?.trim() || s.phase5_weekly_plan_notes?.trim()
+  const setupCheck = checklistDoneLine("Phase 1 setup checklist", s.phase1_checklist, 5)
+  const closeCheck = checklistDoneLine("Phase 6 close checklist", s.phase6_close_checklist, 5)
+  const anyChecklist = hasChecklistData(s.phase1_checklist) || hasChecklistData(s.phase6_close_checklist)
 
   return (
     <div className="space-y-3 text-[#3C1E38]/90">
+      {setupCheck}
+      {closeCheck}
       {s.session_quality != null && (
         <div>
           <p className="text-xs font-medium text-[#3C1E38]/50 uppercase tracking-wide">Session effectiveness</p>
@@ -83,7 +108,12 @@ function CompletedSessionSummary({ s }: { s: PulseSessionRow }) {
           <p className="mt-1 whitespace-pre-wrap text-[#3C1E38]/80 line-clamp-6">{notes}</p>
         </div>
       ) : null}
-      {!priorities.length && !monday.length && !constraint && !notes && s.session_quality == null && (
+      {!priorities.length &&
+        !monday.length &&
+        !constraint &&
+        !notes &&
+        s.session_quality == null &&
+        !anyChecklist && (
         <p className="text-[#3C1E38]/50 italic">No summary details were saved for this session.</p>
       )}
       <p className="text-xs text-[#3C1E38]/45 pt-1">
