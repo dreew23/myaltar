@@ -17,6 +17,11 @@ import type { GoalConfig } from "@/lib/data/dominion"
 import { PHASES, type PhaseId, type PulseSessionRow } from "@/lib/pulse"
 import { parseChecklistMap, toChecklistJson } from "@/lib/pulse-checklists"
 import { findSessionForWeek, getRecentSundays, toLocalISODate } from "@/lib/pulse-session-dates"
+import {
+  currentConsecutiveWeekStreak,
+  longestConsecutiveWeekStreak,
+  mergeCompletedPulseSessionsForStreak,
+} from "@/lib/pulse-streak"
 import type { PersonalYearConfigRow } from "@/lib/personal-year"
 import {
   formatDualPulseContextLine,
@@ -542,37 +547,20 @@ export function PulseClient(props: PulseClientProps) {
     }
   }, [props.weekDevotions, props.declarationLogsSummary, props.weekDownloads])
 
-  const sessionsForStreak = useMemo(() => {
-    const list = [...props.pastSessions]
-    if (session?.completed_at) {
-      list.push(session as unknown as PulseSessionRow)
-    } else if (props.todaySession?.completed_at) {
-      list.push(props.todaySession)
-    }
-    return list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-  }, [props.pastSessions, session, props.todaySession])
+  const sessionsForStreak = useMemo(
+    () =>
+      mergeCompletedPulseSessionsForStreak(
+        props.sessionsForWeekMatching,
+        props.pastSessions,
+        session,
+        props.todaySession
+      ),
+    [props.sessionsForWeekMatching, props.pastSessions, session, props.todaySession]
+  )
 
-  const streakCount = useMemo(() => {
-    let streak = 0
-    for (const s of sessionsForStreak) {
-      if (s.completed_at) streak++
-      else break
-    }
-    return streak
-  }, [sessionsForStreak])
+  const streakCount = useMemo(() => currentConsecutiveWeekStreak(sessionsForStreak), [sessionsForStreak])
 
-  const longestStreak = useMemo(() => {
-    let max = 0
-    let cur = 0
-    for (const s of sessionsForStreak) {
-      if (s.completed_at) cur++
-      else {
-        max = Math.max(max, cur)
-        cur = 0
-      }
-    }
-    return Math.max(max, cur)
-  }, [sessionsForStreak])
+  const longestStreak = useMemo(() => longestConsecutiveWeekStreak(sessionsForStreak), [sessionsForStreak])
 
   const quarterSundays = 13
   const quarterSessionCount = useMemo(() => {
