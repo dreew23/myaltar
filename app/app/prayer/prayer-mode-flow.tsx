@@ -104,7 +104,7 @@ export function PrayerModeFlow({
   scheduleComplete,
 }: Props) {
   const router = useRouter()
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const verse = useMemo(() => getVerseForToday(), [])
   const streak = useMemo(() => computeStreak(sessions), [sessions])
 
@@ -134,6 +134,8 @@ export function PrayerModeFlow({
 
   const [tick, setTick] = useState(0)
   const [challengeRows, setChallengeRows] = useState(challenges)
+  const [wrapSaveError, setWrapSaveError] = useState<string | null>(null)
+  const [wrapSaving, setWrapSaving] = useState(false)
 
   useEffect(() => {
     setDeclLogs(todayDeclarationLogs)
@@ -150,8 +152,9 @@ export function PrayerModeFlow({
       setPhase("settle")
     } else if (todaySession?.start_time && !todaySession.end_time) {
       setDayComplete(false)
-      setPhase("engage")
       setAreasCovered(todaySession.focus_areas_covered ?? [])
+      // Do not yank the user out of wrap-up when props refresh (same in-progress row).
+      setPhase((prev) => (prev === "wrap" ? "wrap" : "engage"))
     } else {
       setDayComplete(false)
       setPhase("settle")
@@ -278,7 +281,10 @@ export function PrayerModeFlow({
     await beginSession()
   }
 
-  const goToWrap = () => setPhase("wrap")
+  const goToWrap = () => {
+    setWrapSaveError(null)
+    setPhase("wrap")
+  }
 
   const cancelSession = async () => {
     if (!session?.id) return
@@ -290,29 +296,46 @@ export function PrayerModeFlow({
   }
 
   const saveWrapUp = async () => {
-    if (!session) return
-    const end = new Date().toISOString()
-    const durationMin = Math.max(1, Math.round(elapsedMs / 60000))
-    const declDone = declarations.filter((d) => (declCounts[d.id] ?? 0) >= d.target_count).length
+    if (!session?.id) return
+    setWrapSaveError(null)
+    setWrapSaving(true)
+    try {
+      const end = new Date().toISOString()
+      const durationMin = Math.max(1, Math.round(elapsedMs / 60000))
+      const declDone = declarations.filter((d) => (declCounts[d.id] ?? 0) >= d.target_count).length
 
-    const { data } = await supabase
-      .from("prayer_sessions")
-      .update({
-        end_time: end,
-        duration_minutes: durationMin,
-        focus_areas_covered: areasCovered,
-        journal_entry: sessionNotesEngage.trim() || session.journal_entry,
-        breakthroughs: wrapBreakthroughs.trim() || null,
-        intercession_theme_completed: intercessionDone === "yes",
-        atmosphere: wrapAtmosphere,
-        warfare_intensity: wrapWarfare,
-        declarations_completed: declDone >= declarations.length && declarations.length > 0,
-      })
-      .eq("id", session.id)
-      .select()
-      .single()
+      const journal =
+        sessionNotesEngage.trim() || (session.journal_entry?.trim() ?? "") || null
 
-    if (data) {
+      const { data, error } = await supabase
+        .from("prayer_sessions")
+        .update({
+          end_time: end,
+          duration_minutes: durationMin,
+          focus_areas_covered: areasCovered,
+          journal_entry: journal,
+          breakthroughs: wrapBreakthroughs.trim() || null,
+          intercession_theme_completed: intercessionDone === "yes",
+          atmosphere: wrapAtmosphere,
+          warfare_intensity: wrapWarfare,
+          declarations_completed: declDone >= declarations.length && declarations.length > 0,
+        })
+        .eq("id", session.id)
+        .select()
+        .single()
+
+      if (error || !data) {
+        const raw = error?.message ?? "Update returned no row"
+        const code = error?.code
+        const hint =
+          code === "PGRST116" || /0 rows|no rows|JSON object requested/i.test(raw)
+            ? "Session was not updated. Refresh the page and begin Prayer Mode again while signed in."
+            : `${raw}${code ? ` (${code})` : ""}`
+        console.error("[Prayer] saveWrapUp failed:", error)
+        setWrapSaveError(hint)
+        return
+      }
+
       setSession(data as PrayerSession)
       onSessionUpdate(data as PrayerSession)
       setPhase("settle")
@@ -321,7 +344,10 @@ export function PrayerModeFlow({
       setWrapBreakthroughs("")
       setIntercessionDone(null)
       setWrapAtmosphere(null)
+      setWrapSaveError(null)
       router.refresh()
+    } finally {
+      setWrapSaving(false)
     }
   }
 
@@ -811,12 +837,20 @@ export function PrayerModeFlow({
             />
           </div>
 
+          {wrapSaveError ? (
+            <div className="rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-950">
+              <p className="font-medium">Could not save session</p>
+              <p className="mt-1 font-mono text-xs break-words whitespace-pre-wrap">{wrapSaveError}</p>
+            </div>
+          ) : null}
+
           <button
             type="button"
+            disabled={wrapSaving}
             onClick={() => void saveWrapUp()}
-            className="w-full rounded-xl bg-gradient-to-r from-[#b8860b] to-[#d4a017] py-4 font-medium text-white"
+            className="w-full rounded-xl bg-gradient-to-r from-[#b8860b] to-[#d4a017] py-4 font-medium text-white disabled:opacity-50"
           >
-            Save & Complete Session
+            {wrapSaving ? "Saving…" : "Save & Complete Session"}
           </button>
         </div>
       )}
