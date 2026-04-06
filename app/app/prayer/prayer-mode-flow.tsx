@@ -54,6 +54,11 @@ function formatElapsed(ms: number): string {
   return [h, m, sec].map((n) => String(n).padStart(2, "0")).join(":")
 }
 
+/** DB may lack extension columns until 20250330_prayer_module_extensions.sql is applied. */
+function isMissingPrayerWrapColumnError(message: string): boolean {
+  return /atmosphere|warfare_intensity|PGRST204|schema cache/i.test(message)
+}
+
 function computeStreak(sessions: PrayerSession[]): number {
   const done = new Set(sessions.filter((s) => s.end_time).map((s) => s.date))
   const d = new Date()
@@ -307,22 +312,39 @@ export function PrayerModeFlow({
       const journal =
         sessionNotesEngage.trim() || (session.journal_entry?.trim() ?? "") || null
 
-      const { data, error } = await supabase
-        .from("prayer_sessions")
-        .update({
-          end_time: end,
-          duration_minutes: durationMin,
-          focus_areas_covered: areasCovered,
-          journal_entry: journal,
-          breakthroughs: wrapBreakthroughs.trim() || null,
-          intercession_theme_completed: intercessionDone === "yes",
-          atmosphere: wrapAtmosphere,
-          warfare_intensity: wrapWarfare,
-          declarations_completed: declDone >= declarations.length && declarations.length > 0,
-        })
-        .eq("id", session.id)
-        .select()
-        .single()
+      const basePayload = {
+        end_time: end,
+        duration_minutes: durationMin,
+        focus_areas_covered: areasCovered,
+        journal_entry: journal,
+        breakthroughs: wrapBreakthroughs.trim() || null,
+        intercession_theme_completed: intercessionDone === "yes",
+        declarations_completed: declDone >= declarations.length && declarations.length > 0,
+      }
+
+      const runWrapUpdate = (payload: Record<string, unknown>) =>
+        supabase.from("prayer_sessions").update(payload).eq("id", session.id).select().single()
+
+      let { data, error } = await runWrapUpdate({
+        ...basePayload,
+        atmosphere: wrapAtmosphere,
+        warfare_intensity: wrapWarfare,
+      })
+
+      if (error && isMissingPrayerWrapColumnError(error.message)) {
+        const wrapMeta = [
+          wrapAtmosphere ? `Atmosphere: ${wrapAtmosphere}` : null,
+          `Warfare intensity: ${wrapWarfare}/5`,
+        ]
+          .filter(Boolean)
+          .join(" · ")
+        const prev = (session.notes ?? "").trim()
+        const mergedNotes = prev ? `${prev}\n[Wrap] ${wrapMeta}` : `[Wrap] ${wrapMeta}`
+        ;({ data, error } = await runWrapUpdate({
+          ...basePayload,
+          notes: mergedNotes,
+        }))
+      }
 
       if (error || !data) {
         const raw = error?.message ?? "Update returned no row"
