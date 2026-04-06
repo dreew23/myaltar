@@ -28,6 +28,8 @@ interface Phase6CloseProps {
   completing: boolean
   /** When true, primary action saves edits without changing completion time. */
   sessionAlreadyComplete?: boolean
+  /** Shown under the primary button when save/complete fails */
+  errorMessage?: string | null
 }
 
 export function Phase6Close({
@@ -45,6 +47,7 @@ export function Phase6Close({
   onCompleteSession,
   completing,
   sessionAlreadyComplete = false,
+  errorMessage = null,
 }: Phase6CloseProps) {
   const [prayerOpen, setPrayerOpen] = useState(true)
 
@@ -120,6 +123,12 @@ export function Phase6Close({
       >
         {completing ? "Saving…" : sessionAlreadyComplete ? "Save updates" : "Complete Session"}
       </button>
+      {errorMessage ? (
+        <div className="rounded-lg border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-950">
+          <p className="font-medium">Could not save</p>
+          <p className="text-xs mt-1 font-mono break-words whitespace-pre-wrap">{errorMessage}</p>
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -23,6 +23,11 @@ import {
   mergeCompletedPulseSessionsForStreak,
 } from "@/lib/pulse-streak"
 import { recordSundayPulseClosingPrayer } from "@/lib/pulse-complete-prayer"
+import {
+  isMissingChecklistColumnError,
+  isNoRowUpdatedError,
+  stripPulseChecklistFields,
+} from "@/lib/pulse-complete-payload"
 import type { PersonalYearConfigRow } from "@/lib/personal-year"
 import {
   formatDualPulseContextLine,
@@ -120,7 +125,7 @@ function sessionToState(s: PulseSessionRow | null): SessionState | null {
 
 export function PulseClient(props: PulseClientProps) {
   const router = useRouter()
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const mode = props.mode ?? "create"
   const isSunday = new Date().getDay() === 0
 
@@ -145,6 +150,7 @@ export function PulseClient(props: PulseClientProps) {
   const [completing, setCompleting] = useState(false)
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null)
   const [persistError, setPersistError] = useState<string | null>(null)
+  const [completeActionError, setCompleteActionError] = useState<string | null>(null)
   const skipPlanPersist = useRef(true)
   /** Only hydrate phase fields from server when switching sessions — refresh() was wiping in-progress edits. */
   const hydratedSessionIdRef = useRef<string | null>(null)
@@ -204,7 +210,7 @@ export function PulseClient(props: PulseClientProps) {
       const daysUntilNextMonday = day === 0 ? 1 : day === 1 ? 7 : 8 - day
       dt.setDate(dt.getDate() + daysUntilNextMonday)
       const weekStartStr = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`
-      await supabase.from("weekly_goals").upsert(
+      const { error } = await supabase.from("weekly_goals").upsert(
         {
           user_id: props.userId,
           week_start_date: weekStartStr,
@@ -220,6 +226,7 @@ export function PulseClient(props: PulseClientProps) {
         },
         { onConflict: "user_id,week_start_date" }
       )
+      return error
     },
     [props.userId, supabase]
   )
@@ -228,13 +235,21 @@ export function PulseClient(props: PulseClientProps) {
     async (updates: Partial<SessionState>) => {
       if (!session) return
       setSession((p) => (p ? { ...p, ...updates } : null))
-      const { error } = await supabase.from("pulse_sessions").update(updates).eq("id", session.id)
-      if (error) console.error("[Pulse] update error:", error.message)
-      else {
-        setPersistError(null)
-        setLastSavedAt(Date.now())
-        router.refresh()
+      const { data, error } = await supabase
+        .from("pulse_sessions")
+        .update(updates)
+        .eq("id", session.id)
+        .select("id")
+        .single()
+      if (error || !data) {
+        const msg = error?.message ?? "No row updated (check login / session)"
+        console.error("[Pulse] update error:", msg)
+        setPersistError(msg)
+        return
       }
+      setPersistError(null)
+      setLastSavedAt(Date.now())
+      router.refresh()
     },
     [session, supabase, router]
   )
@@ -243,10 +258,18 @@ export function PulseClient(props: PulseClientProps) {
   const persistSessionQuiet = useCallback(
     async (patch: Record<string, unknown>) => {
       if (!session) return
-      const { error } = await supabase.from("pulse_sessions").update(patch).eq("id", session.id)
-      if (error) {
-        const msg = error.message
-        console.warn("[Pulse] quiet persist:", msg)
+      const { data, error } = await supabase
+        .from("pulse_sessions")
+        .update(patch)
+        .eq("id", session.id)
+        .select("id")
+        .single()
+      if (error || !data) {
+        const raw = error?.message ?? "No row updated"
+        const msg = isNoRowUpdatedError(raw, error?.code)
+          ? "Autosave failed: session row not found or not allowed. Refresh and use Begin session again."
+          : raw
+        console.warn("[Pulse] quiet persist:", raw)
         setPersistError(msg)
       } else {
         setPersistError(null)
@@ -439,15 +462,18 @@ export function PulseClient(props: PulseClientProps) {
   const completeSession = useCallback(async () => {
     if (!session) return
     setCompleting(true)
-    setPersistError(null)
+    setCompleteActionError(null)
     const completedAt = new Date().toISOString()
     const start = session.started_at ? new Date(session.started_at).getTime() : Date.now()
     const totalMinutes = Math.max(1, Math.round((Date.now() - start) / 60000))
 
-    const payloadBase = {
-      phase5_next_week_focus: nextWeekFocus,
-      phase6_monday_top3: mondayTop3,
-      session_quality: sessionQuality,
+    const pq =
+      sessionQuality != null && sessionQuality >= 1 && sessionQuality <= 5 ? sessionQuality : null
+
+    const payloadBase: Record<string, unknown> = {
+      phase5_next_week_focus: nextWeekFocus.map((s) => (typeof s === "string" ? s : String(s ?? ""))),
+      phase6_monday_top3: mondayTop3.map((s) => (typeof s === "string" ? s : String(s ?? ""))),
+      session_quality: pq,
       phase4_time_analysis: phase4Time || null,
       phase4_constraint_changes: phase4Constraint || null,
       phase4_declaration_reviewed: phase4Declaration || null,
@@ -455,25 +481,44 @@ export function PulseClient(props: PulseClientProps) {
       phase6_close_checklist: toChecklistJson(phase6ClosingChecklist),
     }
 
-    try {
-      const pulseRes = session.completed_at
-        ? await supabase.from("pulse_sessions").update(payloadBase).eq("id", session.id)
-        : await supabase
-            .from("pulse_sessions")
-            .update({
-              ...payloadBase,
-              completed_at: completedAt,
-              total_duration_minutes: totalMinutes,
-              phases_completed: [...PHASE_IDS],
-            })
-            .eq("id", session.id)
+    const completionExtra: Record<string, unknown> = {
+      completed_at: completedAt,
+      total_duration_minutes: totalMinutes,
+      phases_completed: [...PHASE_IDS],
+    }
 
-      if (pulseRes.error) {
-        console.error("[Pulse] completeSession:", pulseRes.error.message)
-        setPersistError(pulseRes.error.message)
-        return
+    const runPulseUpdate = async (payload: Record<string, unknown>) =>
+      supabase.from("pulse_sessions").update(payload).eq("id", session.id).select("id").single()
+
+    let checklistMigrationHint: string | null = null
+    let pulseRes = await runPulseUpdate(
+      session.completed_at ? payloadBase : { ...payloadBase, ...completionExtra }
+    )
+
+    if (pulseRes.error && isMissingChecklistColumnError(pulseRes.error.message)) {
+      const stripped = stripPulseChecklistFields(
+        session.completed_at ? payloadBase : { ...payloadBase, ...completionExtra }
+      )
+      pulseRes = await runPulseUpdate(stripped)
+      if (!pulseRes.error && pulseRes.data) {
+        checklistMigrationHint =
+          "Planning session saved, but checklist columns are missing in the database. Run migration 20250406_pulse_checklist_jsonb.sql in Supabase."
       }
+    }
 
+    if (pulseRes.error || !pulseRes.data) {
+      const raw = pulseRes.error?.message ?? "Update returned no row"
+      const code = pulseRes.error?.code
+      const msg = isNoRowUpdatedError(raw, code)
+        ? "Nothing was saved. Refresh the page, tap Begin session again, and stay signed in. If this keeps happening, the row may not exist for your account."
+        : `${raw}${code ? ` (${code})` : ""}`
+      console.error("[Pulse] completeSession failed:", pulseRes.error)
+      setCompleteActionError(msg)
+      setCompleting(false)
+      return
+    }
+
+    try {
       if (!session.completed_at) {
         setSession((p) =>
           p
@@ -493,18 +538,16 @@ export function PulseClient(props: PulseClientProps) {
         startedAt: session.started_at,
         completedAt,
         totalMinutes,
-        sessionQuality,
+        sessionQuality: pq,
       })
-      if (prayerRes.error) {
-        console.warn("[Pulse] prayer_sessions log:", prayerRes.error.message)
-        setPersistError(
-          `Planning session saved, but prayer log failed: ${prayerRes.error.message}`
-        )
-      } else {
-        setPersistError(null)
-      }
+      const wgErr = await upsertWeeklyGoalsForSession(nextWeekFocus, session.date)
 
-      await upsertWeeklyGoalsForSession(nextWeekFocus, session.date)
+      const parts: string[] = []
+      if (checklistMigrationHint) parts.push(checklistMigrationHint)
+      if (prayerRes.error) parts.push(`Prayer log failed: ${prayerRes.error.message}`)
+      if (wgErr) parts.push(`Weekly goals: ${wgErr.message}`)
+      setCompleteActionError(parts.length ? parts.join(" ") : null)
+
       setLastSavedAt(Date.now())
     } finally {
       setCompleting(false)
@@ -801,6 +844,7 @@ export function PulseClient(props: PulseClientProps) {
                   onCompleteSession={completeSession}
                   completing={completing}
                   sessionAlreadyComplete={!!session?.completed_at}
+                  errorMessage={completeActionError}
                 />
               )}
             </PhaseCard>
