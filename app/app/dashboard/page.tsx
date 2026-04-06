@@ -97,7 +97,8 @@ export default async function DashboardPage() {
         .select("id, duration_minutes, end_time")
         .eq("user_id", user.id)
         .eq("date", todayStr)
-        .maybeSingle(),
+        .order("end_time", { ascending: false, nullsFirst: false })
+        .limit(1),
       supabase
         .from("pulse_sessions")
         .select("id, started_at, completed_at, phases_completed, total_duration_minutes, session_quality")
@@ -129,7 +130,7 @@ export default async function DashboardPage() {
     sermonsRes = sem
     todayLogRes = today
     weeklyPrincipleRes = weekly
-    todayPrayerSessionRes = prayerSession
+    todayPrayerSessionRes = { data: prayerSession.data?.[0] ?? null }
     todayPulseSessionRes = pulseSession
     weeklyGoalsRes = weeklyGoals
     personalYearsRes = { data: personalYears.data ?? [] }

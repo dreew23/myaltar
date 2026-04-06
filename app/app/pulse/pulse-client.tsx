@@ -22,6 +22,7 @@ import {
   longestConsecutiveWeekStreak,
   mergeCompletedPulseSessionsForStreak,
 } from "@/lib/pulse-streak"
+import { recordSundayPulseClosingPrayer } from "@/lib/pulse-complete-prayer"
 import type { PersonalYearConfigRow } from "@/lib/personal-year"
 import {
   formatDualPulseContextLine,
@@ -438,9 +439,10 @@ export function PulseClient(props: PulseClientProps) {
   const completeSession = useCallback(async () => {
     if (!session) return
     setCompleting(true)
+    setPersistError(null)
     const completedAt = new Date().toISOString()
     const start = session.started_at ? new Date(session.started_at).getTime() : Date.now()
-    const totalMinutes = Math.round((Date.now() - start) / 60000)
+    const totalMinutes = Math.max(1, Math.round((Date.now() - start) / 60000))
 
     const payloadBase = {
       phase5_next_week_focus: nextWeekFocus,
@@ -453,26 +455,60 @@ export function PulseClient(props: PulseClientProps) {
       phase6_close_checklist: toChecklistJson(phase6ClosingChecklist),
     }
 
-    if (session.completed_at) {
-      await supabase.from("pulse_sessions").update(payloadBase).eq("id", session.id)
-    } else {
-      await supabase
-        .from("pulse_sessions")
-        .update({
-          ...payloadBase,
-          completed_at: completedAt,
-          total_duration_minutes: totalMinutes,
-          phases_completed: [...PHASE_IDS],
-        })
-        .eq("id", session.id)
-      setSession((p) =>
-        p ? { ...p, completed_at: completedAt, total_duration_minutes: totalMinutes, phases_completed: [...PHASE_IDS] } : null
-      )
-    }
+    try {
+      const pulseRes = session.completed_at
+        ? await supabase.from("pulse_sessions").update(payloadBase).eq("id", session.id)
+        : await supabase
+            .from("pulse_sessions")
+            .update({
+              ...payloadBase,
+              completed_at: completedAt,
+              total_duration_minutes: totalMinutes,
+              phases_completed: [...PHASE_IDS],
+            })
+            .eq("id", session.id)
 
-    await upsertWeeklyGoalsForSession(nextWeekFocus, session.date)
-    setLastSavedAt(Date.now())
-    setCompleting(false)
+      if (pulseRes.error) {
+        console.error("[Pulse] completeSession:", pulseRes.error.message)
+        setPersistError(pulseRes.error.message)
+        return
+      }
+
+      if (!session.completed_at) {
+        setSession((p) =>
+          p
+            ? {
+                ...p,
+                completed_at: completedAt,
+                total_duration_minutes: totalMinutes,
+                phases_completed: [...PHASE_IDS],
+              }
+            : null
+        )
+      }
+
+      const prayerRes = await recordSundayPulseClosingPrayer(supabase, {
+        userId: props.userId,
+        sessionDate: session.date,
+        startedAt: session.started_at,
+        completedAt,
+        totalMinutes,
+        sessionQuality,
+      })
+      if (prayerRes.error) {
+        console.warn("[Pulse] prayer_sessions log:", prayerRes.error.message)
+        setPersistError(
+          `Planning session saved, but prayer log failed: ${prayerRes.error.message}`
+        )
+      } else {
+        setPersistError(null)
+      }
+
+      await upsertWeeklyGoalsForSession(nextWeekFocus, session.date)
+      setLastSavedAt(Date.now())
+    } finally {
+      setCompleting(false)
+    }
     router.refresh()
   }, [
     session,
