@@ -56,24 +56,30 @@ export function PhaseCard({
         <span className="flex-shrink-0">{statusIcon()}</span>
         {expanded ? <ChevronDown className="w-4 h-4 text-[#3C1E38]/40" /> : <ChevronRight className="w-4 h-4 text-[#3C1E38]/40" />}
       </button>
-      {/* Always render body (no collapse / zero-height) — hiding was still losing ticks & inputs for some users. */}
-      <div className="px-4 pb-4 pt-1 border-t border-[#A7C2D7]/10 space-y-4">
-        {children}
-        <div className="flex items-center gap-3 pt-2">
-          {onMarkComplete && status !== "complete" && status !== "skipped" && (
-            <button
-              type="button"
-              onClick={onMarkComplete}
-              className="px-4 py-2 rounded-lg bg-[#A7C2D7]/20 text-[#3C1E38] font-medium text-sm hover:bg-[#A7C2D7]/30 transition-colors"
-            >
-              Mark Complete
-            </button>
-          )}
-          {onSkip && canSkip && status !== "skipped" && (
-            <button type="button" onClick={onSkip} className="text-xs text-[#3C1E38]/50 hover:text-[#3C1E38]/70 underline">
-              Skip phase
-            </button>
-          )}
+      {/* Collapsed visually only (grid 0fr) — keeps children mounted so form state + debounced saves still work. */}
+      <div
+        className={`grid transition-[grid-template-rows] duration-200 ease-out ${expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div className="px-4 pb-4 pt-1 border-t border-[#A7C2D7]/10 space-y-4">
+            {children}
+            <div className="flex items-center gap-3 pt-2">
+              {onMarkComplete && status !== "complete" && status !== "skipped" && (
+                <button
+                  type="button"
+                  onClick={onMarkComplete}
+                  className="px-4 py-2 rounded-lg bg-[#A7C2D7]/20 text-[#3C1E38] font-medium text-sm hover:bg-[#A7C2D7]/30 transition-colors"
+                >
+                  Mark Complete
+                </button>
+              )}
+              {onSkip && canSkip && status !== "skipped" && (
+                <button type="button" onClick={onSkip} className="text-xs text-[#3C1E38]/50 hover:text-[#3C1E38]/70 underline">
+                  Skip phase
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
