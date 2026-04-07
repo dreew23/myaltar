@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Eye, EyeOff, Sparkles, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -9,7 +8,6 @@ import { AltarIcon } from "@/components/logo-variations"
 import { createClient } from "@/lib/supabase/client"
 
 export default function LoginPage() {
-  const router = useRouter()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
@@ -30,7 +28,8 @@ export default function LoginPage() {
       return
     }
 
-    router.push("/app/dashboard")
+    // Full navigation so middleware and Server Components see the new session cookies (client router.push can race).
+    window.location.assign("/app/dashboard")
   }
 
   return (
