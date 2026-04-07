@@ -7,7 +7,7 @@ import { ChevronDown, ChevronRight } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { prayerAreas } from "@/lib/data/dominion"
 import { getVerseForToday } from "@/lib/prayer-verses"
-import { localCalendarDateString, mondayDateString } from "@/lib/prayer-week"
+import { localCalendarDateString, mondayDateString, weekdayLongFromLocaleDateKey } from "@/lib/prayer-week"
 import type { PrayerAtmosphere, PrayerChallengeRow, PrayerRequest, PrayerSession } from "@/lib/prayer"
 import type { TodayIntercession } from "@/lib/data/user-config"
 import type { Declaration, DeclarationLog } from "@/components/app/declarations/types"
@@ -80,6 +80,7 @@ interface Props {
   sessions: PrayerSession[]
   /** Local calendar YYYY-MM-DD — must match DB `date` for new sessions (not UTC-only). */
   todayDateKey: string
+  /** Today's in-progress session only (`end_time` null). Null when none — completed rows do not pass here. */
   todaySession: PrayerSession | null
   declarations: Declaration[]
   todayDeclarationLogs: DeclarationLog[]
@@ -112,10 +113,18 @@ export function PrayerModeFlow({
   const supabase = useMemo(() => createClient(), [])
   const verse = useMemo(() => getVerseForToday(), [])
   const streak = useMemo(() => computeStreak(sessions), [sessions])
+  const completedSessionsToday = useMemo(
+    () =>
+      sessions.filter((s) => s.date === todayDateKey && s.end_time).length,
+    [sessions, todayDateKey]
+  )
+  const todayWeekdayName = useMemo(
+    () => weekdayLongFromLocaleDateKey(todayDateKey),
+    [todayDateKey]
+  )
 
   const [phase, setPhase] = useState<Phase>("settle")
   const [session, setSession] = useState<PrayerSession | null>(todaySession)
-  const [dayComplete, setDayComplete] = useState(!!todaySession?.end_time)
   const [presetStart, setPresetStart] = useState<Date | null>(null)
   /** Which time chip is active (fixed presets + "Now"); avoids hour-mismatch and excludes "Now" from selection styling. */
   const [presetLabel, setPresetLabel] = useState<string | null>(null)
@@ -152,16 +161,11 @@ export function PrayerModeFlow({
 
   useEffect(() => {
     setSession(todaySession)
-    if (todaySession?.end_time) {
-      setDayComplete(true)
-      setPhase("settle")
-    } else if (todaySession?.start_time && !todaySession.end_time) {
-      setDayComplete(false)
+    if (todaySession?.start_time && !todaySession.end_time) {
       setAreasCovered(todaySession.focus_areas_covered ?? [])
       // Do not yank the user out of wrap-up when props refresh (same in-progress row).
       setPhase((prev) => (prev === "wrap" ? "wrap" : "engage"))
     } else {
-      setDayComplete(false)
       setPhase("settle")
     }
   }, [todaySession])
@@ -258,26 +262,23 @@ export function PrayerModeFlow({
       setSession(data as PrayerSession)
       onSessionUpdate(data as PrayerSession)
       setPhase("engage")
-      setDayComplete(false)
       setAreasCovered([])
     }
   }
 
   const tryBeginSession = async () => {
-    const { data: existing } = await supabase
+    const { data: inProgress } = await supabase
       .from("prayer_sessions")
       .select("*")
       .eq("user_id", userId)
       .eq("date", todayStr)
-      .eq("session_type", "morning")
+      .is("end_time", null)
+      .order("start_time", { ascending: false })
+      .limit(1)
       .maybeSingle()
 
-    if (existing) {
-      const ex = existing as PrayerSession
-      if (ex.end_time) {
-        setDayComplete(true)
-        return
-      }
+    if (inProgress) {
+      const ex = inProgress as PrayerSession
       setSession(ex)
       onSessionUpdate(ex)
       setPhase("engage")
@@ -358,10 +359,9 @@ export function PrayerModeFlow({
         return
       }
 
-      setSession(data as PrayerSession)
+      setSession(null)
       onSessionUpdate(data as PrayerSession)
       setPhase("settle")
-      setDayComplete(true)
       setSessionNotesEngage("")
       setWrapBreakthroughs("")
       setIntercessionDone(null)
@@ -506,65 +506,81 @@ export function PrayerModeFlow({
             {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
           </p>
           <p className="font-prayer-display text-2xl italic text-[#b8860b]">Rise and pray</p>
-          <p className="text-sm text-[#2c2419]/60">
-            Streak: <span className="font-prayer-display text-xl text-[#b8860b]">{streak}</span> days
-          </p>
+          <div className="space-y-1 text-sm text-[#2c2419]/60">
+            <p>
+              Streak: <span className="font-prayer-display text-xl text-[#b8860b]">{streak}</span> days
+            </p>
+            <p>
+              {completedSessionsToday === 0 ? (
+                <>
+                  No prayer sessions recorded for{" "}
+                  <span className="font-medium text-[#2c2419]/80">{todayWeekdayName}</span> yet.
+                </>
+              ) : completedSessionsToday === 1 ? (
+                <>
+                  <span className="font-prayer-display text-lg text-[#b8860b]">1</span> prayer session recorded for{" "}
+                  <span className="font-medium text-[#2c2419]/80">{todayWeekdayName}</span>.
+                </>
+              ) : (
+                <>
+                  <span className="font-prayer-display text-lg text-[#b8860b]">{completedSessionsToday}</span> prayer
+                  sessions recorded for <span className="font-medium text-[#2c2419]/80">{todayWeekdayName}</span>.
+                </>
+              )}
+            </p>
+          </div>
           <blockquote className="mx-auto border-l-2 border-[#d4a017] pl-4 text-left">
             <p className="font-prayer-display text-lg leading-relaxed text-[#2c2419]">{verse.text}</p>
             <cite className="mt-2 block text-sm not-italic text-[#2c2419]/50">{verse.ref}</cite>
           </blockquote>
 
-          {dayComplete && (
+          {completedSessionsToday > 0 && (
             <p className="rounded-lg bg-[#ede9e0] px-4 py-3 text-sm text-[#2c2419]/80">
-              Today&apos;s session is complete. Rest in what God did — see the Journal tab for history.
+              Rest in what God did — see the Journal tab for history, or begin another session below.
             </p>
           )}
 
-          {!dayComplete && (
-            <>
-              <div className="flex flex-wrap justify-center gap-2">
-                {TIME_PRESETS.map((p) => (
-                  <button
-                    key={p.label}
-                    type="button"
-                    onClick={() => {
-                      setPresetLabel(p.label)
-                      setPresetStart(p.getDate())
-                      setCustomTime("")
-                    }}
-                    className={`prayer-focus-ring rounded-full border px-3 py-1.5 text-xs font-medium ${
-                      presetLabel === p.label
-                        ? "border-[#b8860b] bg-[#f5f2ec] text-[#b8860b]"
-                        : "border-[var(--prayer-border)] bg-white text-[#2c2419]/80"
-                    }`}
-                  >
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-              <div className="flex items-center justify-center gap-2">
-                <label className="text-xs text-[#2c2419]/60">Custom</label>
-                <input
-                  type="time"
-                  value={customTime}
-                  onChange={(e) => {
-                    setCustomTime(e.target.value)
-                    setPresetStart(null)
-                    setPresetLabel(null)
-                  }}
-                  className="prayer-focus-ring rounded-lg border px-2 py-1 text-sm"
-                  style={{ borderColor: "var(--prayer-border)" }}
-                />
-              </div>
+          <div className="flex flex-wrap justify-center gap-2">
+            {TIME_PRESETS.map((p) => (
               <button
+                key={p.label}
                 type="button"
-                onClick={() => void tryBeginSession()}
-                className="w-full rounded-xl bg-gradient-to-r from-[#b8860b] to-[#d4a017] py-4 font-medium text-white shadow-md transition hover:opacity-95"
+                onClick={() => {
+                  setPresetLabel(p.label)
+                  setPresetStart(p.getDate())
+                  setCustomTime("")
+                }}
+                className={`prayer-focus-ring rounded-full border px-3 py-1.5 text-xs font-medium ${
+                  presetLabel === p.label
+                    ? "border-[#b8860b] bg-[#f5f2ec] text-[#b8860b]"
+                    : "border-[var(--prayer-border)] bg-white text-[#2c2419]/80"
+                }`}
               >
-                Begin Session
+                {p.label}
               </button>
-            </>
-          )}
+            ))}
+          </div>
+          <div className="flex items-center justify-center gap-2">
+            <label className="text-xs text-[#2c2419]/60">Custom</label>
+            <input
+              type="time"
+              value={customTime}
+              onChange={(e) => {
+                setCustomTime(e.target.value)
+                setPresetStart(null)
+                setPresetLabel(null)
+              }}
+              className="prayer-focus-ring rounded-lg border px-2 py-1 text-sm"
+              style={{ borderColor: "var(--prayer-border)" }}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => void tryBeginSession()}
+            className="w-full rounded-xl bg-gradient-to-r from-[#b8860b] to-[#d4a017] py-4 font-medium text-white shadow-md transition hover:opacity-95"
+          >
+            {completedSessionsToday > 0 ? "Begin another session" : "Begin Session"}
+          </button>
         </div>
       )}
 

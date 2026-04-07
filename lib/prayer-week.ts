@@ -19,3 +19,13 @@ export function getMondayOfWeek(d = new Date()): Date {
 export function mondayDateString(d = new Date()): string {
   return getMondayOfWeek(d).toISOString().split("T")[0]!
 }
+
+/** Long weekday from local calendar `YYYY-MM-DD` (e.g. "Tuesday"). */
+export function weekdayLongFromLocaleDateKey(dateKey: string): string {
+  const parts = dateKey.split("-").map((x) => parseInt(x, 10))
+  if (parts.length !== 3 || parts.some((n) => Number.isNaN(n))) {
+    return new Date().toLocaleDateString("en-US", { weekday: "long" })
+  }
+  const [y, m, d] = parts
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", { weekday: "long" })
+}

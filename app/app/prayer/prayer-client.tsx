@@ -98,11 +98,17 @@ export function PrayerClient({
     }
   }, [localDayKey, router])
 
+  /** In-progress Prayer Mode session for today (end_time null). Most recent start wins if multiple. */
   const todaySession = useMemo(() => {
     if (localDayKey === null) return null
-    return (
-      sessionsList.find((s) => s.date === localDayKey && s.session_type === "morning") ?? null
+    const inProgress = sessionsList.filter(
+      (s) => s.date === localDayKey && !s.end_time
     )
+    if (inProgress.length === 0) return null
+    return [...inProgress].sort(
+      (a, b) =>
+        new Date(b.start_time ?? 0).getTime() - new Date(a.start_time ?? 0).getTime()
+    )[0] ?? null
   }, [sessionsList, localDayKey])
 
   const declarationLogsToday = useMemo(() => {
