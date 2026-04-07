@@ -2,10 +2,7 @@ import type React from "react"
 import type { Metadata, Viewport } from "next"
 import { Inter, EB_Garamond } from "next/font/google"
 import "./globals.css"
-import LayoutWrapper from "@/components/layout-wrapper"
-import CookieConsent from "@/components/cookie-consent"
-import { PWARegister } from "@/components/pwa-register"
-import { Toaster } from "sonner"
+import { AppProviders } from "./providers"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 const ebGaramond = EB_Garamond({ subsets: ["latin"], variable: "--font-eb-garamond" })
@@ -98,10 +95,7 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className="min-h-screen bg-gradient-to-br from-cream via-white to-sage/10">
-        <LayoutWrapper>{children}</LayoutWrapper>
-        <CookieConsent />
-        <PWARegister />
-        <Toaster position="top-right" richColors />
+        <AppProviders>{children}</AppProviders>
       </body>
     </html>
   )
