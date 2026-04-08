@@ -28,7 +28,7 @@ export default function LoginPage() {
       return
     }
 
-    // Full navigation so middleware and Server Components see the new session cookies (client router.push can race).
+    // Full navigation so proxy and Server Components see the new session cookies (client router.push can race).
     window.location.assign("/app/dashboard")
   }
 
