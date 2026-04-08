@@ -4,31 +4,21 @@ import { useState, useRef, useEffect } from "react"
 import { Plus, Star, X } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
-import type { EntryType, JournalEntry } from "./types"
-import { ENTRY_TYPES } from "./types"
+import type { EntryType, JournalEntry, SpiritualActivity } from "./types"
+import { ENTRY_TYPES, getSacredFocusEntryDateBounds, JOURNAL_OPTIONAL_FIELDS_BY_TYPE } from "./types"
 
 interface Props {
   activityId: string
+  activity?: SpiritualActivity
   userId: string
   onEntryAdded: (entry: JournalEntry) => void
 }
 
-const FIELDS_FOR_TYPE: Record<string, string[]> = {
-  revelation: ["scripture_reference"],
-  assignment: ["scripture_reference"],
-  prophecy: ["speaker", "scripture_reference"],
-  instruction: ["speaker"],
-  lesson: ["scripture_reference"],
-  key_quote: ["speaker"],
-  rhema: ["scripture_reference"],
-  prayer_point: ["scripture_reference"],
-  testimony: [],
-  note: [],
-}
-
-export function JournalEntryForm({ activityId, userId, onEntryAdded }: Props) {
+export function JournalEntryForm({ activityId, activity, userId, onEntryAdded }: Props) {
+  const { min: dateMin, max: dateMax } = getSacredFocusEntryDateBounds(activity)
   const [open, setOpen] = useState(false)
   const [selectedType, setSelectedType] = useState<EntryType | null>(null)
+  const [entryDate, setEntryDate] = useState(dateMax)
   const [content, setContent] = useState("")
   const [scriptureRef, setScriptureRef] = useState("")
   const [speaker, setSpeaker] = useState("")
@@ -44,6 +34,7 @@ export function JournalEntryForm({ activityId, userId, onEntryAdded }: Props) {
 
   const reset = () => {
     setSelectedType(null)
+    setEntryDate(dateMax)
     setContent("")
     setScriptureRef("")
     setSpeaker("")
@@ -52,6 +43,10 @@ export function JournalEntryForm({ activityId, userId, onEntryAdded }: Props) {
 
   const handleSave = async () => {
     if (!selectedType || !content.trim()) return
+    if (entryDate < dateMin || entryDate > dateMax) {
+      toast.error("Choose a date between the allowed range (not in the future).")
+      return
+    }
     setSaving(true)
 
     const entry = {
@@ -62,7 +57,7 @@ export function JournalEntryForm({ activityId, userId, onEntryAdded }: Props) {
       scripture_reference: scriptureRef.trim() || null,
       speaker: speaker.trim() || null,
       is_highlight: isHighlight,
-      date: new Date().toISOString().split("T")[0],
+      date: entryDate,
     }
 
     const supabase = createClient()
@@ -92,12 +87,15 @@ export function JournalEntryForm({ activityId, userId, onEntryAdded }: Props) {
     // Keep form open for rapid entry
   }
 
-  const optionalFields = selectedType ? FIELDS_FOR_TYPE[selectedType] ?? [] : []
+  const optionalFields = selectedType ? JOURNAL_OPTIONAL_FIELDS_BY_TYPE[selectedType] ?? [] : []
 
   if (!open) {
     return (
       <button
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setEntryDate(dateMax)
+          setOpen(true)
+        }}
         className="w-full flex items-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed border-[#A7C2D7]/30 text-[#3C1E38]/40 hover:border-[#A7C2D7]/60 hover:text-[#3C1E38]/60 transition-all"
       >
         <Plus className="w-5 h-5" />
@@ -143,6 +141,21 @@ export function JournalEntryForm({ activityId, userId, onEntryAdded }: Props) {
       {/* Step 2: Content — auto-focused */}
       {selectedType && (
         <>
+          <div>
+            <label className="text-xs text-[#3C1E38]/40 mb-1.5 block">Entry date</label>
+            <input
+              type="date"
+              value={entryDate}
+              min={dateMin}
+              max={dateMax}
+              onChange={(e) => setEntryDate(e.target.value)}
+              className="w-full max-w-[220px] px-3 py-2 border border-[#A7C2D7]/20 rounded-xl text-sm text-[#3C1E38] focus:ring-2 focus:ring-[#A7C2D7]/30 focus:border-[#A7C2D7] outline-none"
+            />
+            <p className="text-[10px] text-[#3C1E38]/35 mt-1.5">
+              Defaults to today. Pick a past day to backdate this entry. Future dates are not allowed.
+            </p>
+          </div>
+
           <div>
             <textarea
               ref={textareaRef}

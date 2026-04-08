@@ -49,6 +49,14 @@ export function ActivityDetail({
     setEntries((prev) => [entry, ...prev])
   }
 
+  const handleEntryUpdated = (entry: JournalEntry) => {
+    setEntries((prev) => prev.map((e) => (e.id === entry.id ? entry : e)))
+  }
+
+  const handleEntryDeleted = (id: string) => {
+    setEntries((prev) => prev.filter((e) => e.id !== id))
+  }
+
   const handleSubLogUpdate = (challengeId: string, log: SubChallengeLog) => {
     setChallengeLogs((prev) => {
       const existing = prev.findIndex((l) => l.sub_challenge_id === challengeId && l.date === log.date)
@@ -67,6 +75,14 @@ export function ActivityDetail({
 
   const handleFruitAdded = (fruit: ActivityFruit) => {
     setFruits((prev) => [fruit, ...prev])
+  }
+
+  const handleFruitUpdated = (fruit: ActivityFruit) => {
+    setFruits((prev) => prev.map((f) => (f.id === fruit.id ? fruit : f)))
+  }
+
+  const handleFruitDeleted = (id: string) => {
+    setFruits((prev) => prev.filter((f) => f.id !== id))
   }
 
   return (
@@ -185,11 +201,26 @@ export function ActivityDetail({
         </TabsList>
 
         <TabsContent value="journal" className="mt-4">
-          <Journal activity={activity} entries={entries} userId={userId} onEntryAdded={handleEntryAdded} />
+          <Journal
+            activity={activity}
+            entries={entries}
+            userId={userId}
+            onEntryAdded={handleEntryAdded}
+            onEntryUpdated={handleEntryUpdated}
+            onEntryDeleted={handleEntryDeleted}
+          />
         </TabsContent>
 
         <TabsContent value="fruits" className="mt-4">
-          <FruitRecording activityId={activity.id} fruits={fruits} userId={userId} onFruitAdded={handleFruitAdded} />
+          <FruitRecording
+            activityId={activity.id}
+            activity={activity}
+            fruits={fruits}
+            userId={userId}
+            onFruitAdded={handleFruitAdded}
+            onFruitUpdated={handleFruitUpdated}
+            onFruitDeleted={handleFruitDeleted}
+          />
         </TabsContent>
       </Tabs>
     </div>

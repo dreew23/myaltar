@@ -63,6 +63,23 @@ export function getEntryTypeConfig(type: EntryType): EntryTypeConfig {
   return ENTRY_TYPES.find((t) => t.key === type) ?? ENTRY_TYPES[ENTRY_TYPES.length - 1]
 }
 
+/** Optional fields shown per journal entry type (content is always required). */
+export const JOURNAL_OPTIONAL_FIELDS_BY_TYPE: Record<
+  EntryType,
+  ("scripture_reference" | "speaker")[]
+> = {
+  revelation: ["scripture_reference"],
+  assignment: ["scripture_reference"],
+  prophecy: ["speaker", "scripture_reference"],
+  instruction: ["speaker"],
+  lesson: ["scripture_reference"],
+  key_quote: ["speaker"],
+  rhema: ["scripture_reference"],
+  prayer_point: ["scripture_reference"],
+  testimony: [],
+  note: [],
+}
+
 export interface JournalEntry {
   id: string
   user_id: string
@@ -160,6 +177,19 @@ export function getRecurrenceLabel(pattern: string | null): string {
     return days.map((d) => DAYS_OF_WEEK.find((dw) => dw.value === d)?.label).filter(Boolean).join(", ")
   }
   return pattern
+}
+
+/** YYYY-MM-DD bounds for backdated journal/fruit entries (not after today; not after activity end_date if in the past). */
+export function getSacredFocusEntryDateBounds(activity: SpiritualActivity | undefined): { min: string; max: string } {
+  const today = new Date()
+  const y = today.getFullYear()
+  const m = String(today.getMonth() + 1).padStart(2, "0")
+  const d = String(today.getDate()).padStart(2, "0")
+  let max = `${y}-${m}-${d}`
+  if (activity?.end_date && activity.end_date < max) max = activity.end_date
+  let min = activity?.start_date ?? "2000-01-01"
+  if (min > max) min = max
+  return { min, max }
 }
 
 // ─── Helpers ─────────────────────────────────────────

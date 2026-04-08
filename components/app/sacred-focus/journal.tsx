@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react"
 import { Filter } from "lucide-react"
 import { JournalEntryForm } from "./journal-entry-form"
+import { JournalEntryCard } from "./journal-entry-card"
 import { getEntryTypeConfig, ENTRY_TYPES } from "./types"
 import type { JournalEntry, EntryType, SpiritualActivity } from "./types"
 
@@ -11,9 +12,18 @@ interface Props {
   entries: JournalEntry[]
   userId: string
   onEntryAdded: (entry: JournalEntry) => void
+  onEntryUpdated: (entry: JournalEntry) => void
+  onEntryDeleted: (id: string) => void
 }
 
-export function Journal({ activity, entries, userId, onEntryAdded }: Props) {
+export function Journal({
+  activity,
+  entries,
+  userId,
+  onEntryAdded,
+  onEntryUpdated,
+  onEntryDeleted,
+}: Props) {
   const [filterType, setFilterType] = useState<EntryType | "all">("all")
   const [showFilters, setShowFilters] = useState(false)
 
@@ -57,7 +67,7 @@ export function Journal({ activity, entries, userId, onEntryAdded }: Props) {
   return (
     <div className="space-y-4">
       {/* Fast add form */}
-      <JournalEntryForm activityId={activity.id} userId={userId} onEntryAdded={onEntryAdded} />
+      <JournalEntryForm activityId={activity.id} activity={activity} userId={userId} onEntryAdded={onEntryAdded} />
 
       {/* Filter toggle */}
       {entries.length > 0 && (
@@ -116,53 +126,19 @@ export function Journal({ activity, entries, userId, onEntryAdded }: Props) {
               </h3>
               <div className="space-y-2">
                 {dayEntries.map((entry) => (
-                  <EntryCard key={entry.id} entry={entry} />
+                  <JournalEntryCard
+                    key={entry.id}
+                    entry={entry}
+                    activity={activity}
+                    onUpdated={onEntryUpdated}
+                    onDeleted={onEntryDeleted}
+                  />
                 ))}
               </div>
             </div>
           ))}
         </div>
       )}
-    </div>
-  )
-}
-
-function EntryCard({ entry }: { entry: JournalEntry }) {
-  const config = getEntryTypeConfig(entry.entry_type)
-
-  return (
-    <div
-      className={`rounded-xl p-3.5 border transition-all ${
-        entry.is_highlight
-          ? "border-l-4 bg-[#F9D57E]/5"
-          : "bg-white border-[#A7C2D7]/10"
-      }`}
-      style={{ borderLeftColor: entry.is_highlight ? "#F9D57E" : undefined }}
-    >
-      {/* Type badge */}
-      <div className="flex items-start gap-2.5">
-        <span
-          className="px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider flex-shrink-0 mt-0.5"
-          style={{ backgroundColor: `${config.color}18`, color: config.color }}
-        >
-          {config.label}
-        </span>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm text-[#3C1E38] whitespace-pre-wrap leading-relaxed">{entry.content}</p>
-          {/* Scripture reference */}
-          {entry.scripture_reference && (
-            <p className="text-xs text-[#A7C2D7] font-garamond italic mt-1.5">
-              {entry.scripture_reference}
-            </p>
-          )}
-          {/* Speaker */}
-          {entry.speaker && (
-            <p className="text-xs text-[#3C1E38]/40 font-garamond italic mt-1">
-              — {entry.speaker}
-            </p>
-          )}
-        </div>
-      </div>
     </div>
   )
 }
