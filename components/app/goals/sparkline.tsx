@@ -69,7 +69,9 @@ export function Sparkline({ data, colorClass, currentWeek, compactDots }: Sparkl
                   stroke={payload.week === currentWeek ? "#3C1E38" : "transparent"}
                   strokeWidth={1}
                 />
-              ) : null
+              ) : (
+                <circle cx={cx} cy={cy} r={0} fill="transparent" aria-hidden />
+              )
             }
             isAnimationActive={false}
             connectNulls={false}

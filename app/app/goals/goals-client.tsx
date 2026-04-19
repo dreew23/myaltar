@@ -17,7 +17,7 @@ import { NotNowOverview } from "@/components/app/goals/not-now-overview"
 import { QuarterTimeline } from "@/components/app/goals/quarter-timeline"
 import { YearView } from "@/components/app/goals/year-view"
 
-interface PulseCheck {
+export interface PulseCheck {
   id: string
   user_id: string
   week_number: number
@@ -33,7 +33,7 @@ interface PulseCheck {
   [key: string]: unknown
 }
 
-interface GoalNote {
+export interface GoalNote {
   id: string
   user_id: string
   goal_id: string
@@ -42,7 +42,7 @@ interface GoalNote {
   updated_at: string
 }
 
-interface Devotion {
+export interface Devotion {
   date: string
   prayer_complete?: boolean
   sermons_today?: number

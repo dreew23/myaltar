@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { createClient } from "@/lib/supabase/client"
 import { intercessionRotation } from "@/lib/data/dominion"
 
-interface Prayer {
+export interface Prayer {
   id: string
   title: string
   description: string | null

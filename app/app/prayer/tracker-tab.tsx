@@ -6,6 +6,8 @@ import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { createClient } from "@/lib/supabase/client"
+import { ensureOnlineFor } from "@/lib/online-guard"
+import { localCalendarDateString } from "@/lib/prayer-week"
 import {
   REQUEST_CATEGORIES,
   REQUEST_PRIORITIES,
@@ -40,7 +42,7 @@ function heatmap8(requestId: string, events: PrayEvent[]): number[] {
     ws.setDate(monday.getDate() - (7 * (7 - i)))
     const we = new Date(ws)
     we.setDate(ws.getDate() + 6)
-    const wk = ws.toISOString().split("T")[0]!
+    const wk = localCalendarDateString(ws)
     const count = events.filter(
       (e) =>
         e.request_id === requestId &&
@@ -53,6 +55,7 @@ function heatmap8(requestId: string, events: PrayEvent[]): number[] {
 }
 
 export function TrackerTab({ prayerRequests, prayEvents, userId, onRequestsUpdate }: Props) {
+  const router = useRouter()
   const [filter, setFilter] = useState<"active" | "answered" | "all">("active")
   const [catFilter, setCatFilter] = useState<string>("all")
   const [addOpen, setAddOpen] = useState(false)
@@ -65,7 +68,7 @@ export function TrackerTab({ prayerRequests, prayEvents, userId, onRequestsUpdat
   })
   const [answerForm, setAnswerForm] = useState({
     status: "answered" as PrayerRequest["status"],
-    date_answered: new Date().toISOString().split("T")[0],
+    date_answered: localCalendarDateString(),
     answer_note: "",
     answer_type: "fulfilled" as string,
     create_testimony: false,
@@ -95,6 +98,7 @@ export function TrackerTab({ prayerRequests, prayEvents, userId, onRequestsUpdat
 
   const handleAdd = async () => {
     if (!form.request.trim()) return
+    if (!ensureOnlineFor("save this prayer request")) return
     const { data } = await supabase
       .from("prayer_requests")
       .insert({
@@ -115,7 +119,8 @@ export function TrackerTab({ prayerRequests, prayEvents, userId, onRequestsUpdat
   }
 
   const prayedToday = async (r: PrayerRequest) => {
-    const today = new Date().toISOString().split("T")[0]!
+    if (!ensureOnlineFor("record prayer progress")) return
+    const today = localCalendarDateString()
     await supabase.from("prayer_request_pray_events").upsert(
       { user_id: userId, request_id: r.id, prayed_date: today },
       { onConflict: "request_id,prayed_date" }
@@ -135,6 +140,7 @@ export function TrackerTab({ prayerRequests, prayEvents, userId, onRequestsUpdat
 
   const handleUpdateStatus = async () => {
     if (!editRequest) return
+    if (!ensureOnlineFor("update this prayer request")) return
     const updates: Record<string, unknown> = {
       status: answerForm.status,
       date_answered: answerForm.status === "answered" ? answerForm.date_answered : null,
@@ -156,7 +162,7 @@ export function TrackerTab({ prayerRequests, prayEvents, userId, onRequestsUpdat
           entry_type: "testimony",
           title: editRequest.request.slice(0, 80),
           content: `Request: ${editRequest.request}\n\nAnswer: ${answerForm.answer_note}`,
-          date: new Date().toISOString().split("T")[0],
+          date: localCalendarDateString(),
         })
       }
       setEditRequest(null)
@@ -164,6 +170,7 @@ export function TrackerTab({ prayerRequests, prayEvents, userId, onRequestsUpdat
   }
 
   const deleteRequest = async (id: string) => {
+    if (!ensureOnlineFor("delete this prayer request")) return
     await supabase.from("prayer_requests").delete().eq("id", id)
     onRequestsUpdate(prayerRequests.filter((r) => r.id !== id))
   }
@@ -296,7 +303,7 @@ export function TrackerTab({ prayerRequests, prayEvents, userId, onRequestsUpdat
                           setEditRequest(r)
                           setAnswerForm({
                             status: "answered",
-                            date_answered: new Date().toISOString().split("T")[0]!,
+                            date_answered: localCalendarDateString(),
                             answer_note: "",
                             answer_type: "fulfilled",
                             create_testimony: false,
@@ -360,8 +367,13 @@ export function TrackerTab({ prayerRequests, prayEvents, userId, onRequestsUpdat
               className="w-full rounded-lg border border-[#e8e2d6] bg-white p-3 text-sm"
             />
             <select
-              value={form.category}
-              onChange={(e) => setForm({ ...form, category: e.target.value as PrayerRequest["category"] })}
+              value={form.category === null ? "" : form.category}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  category: (e.target.value || null) as PrayerRequest["category"] | "",
+                })
+              }
               className="w-full rounded-lg border border-[#e8e2d6] bg-white p-2 text-sm"
             >
               <option value="">Category</option>

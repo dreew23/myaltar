@@ -6,6 +6,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button"
 import { CounterRing } from "./counter-ring"
 import { createClient } from "@/lib/supabase/client"
+import { ensureOnlineFor, isOnlineNow } from "@/lib/online-guard"
+import { localCalendarDateString } from "@/lib/prayer-week"
 import type { Declaration, DeclarationLog } from "./types"
 
 interface Props {
@@ -44,12 +46,13 @@ export function RecitationMode({ declarations, logs, userId, onCountUpdate }: Pr
   const timers = useRef<Record<string, NodeJS.Timeout>>({})
 
   const flushOne = useCallback(async (declId: string, increment: number) => {
+    if (!isOnlineNow()) return
     const decl = declarations.find((d) => d.id === declId)
     if (!decl) return
     const newCount = counts[declId] ?? 0
     const completed = newCount >= decl.target_count
 
-    const today = new Date().toISOString().split("T")[0]
+    const today = localCalendarDateString()
     await supabase.from("declaration_logs").upsert({
       user_id: userId,
       declaration_id: declId,
@@ -79,6 +82,7 @@ export function RecitationMode({ declarations, logs, userId, onCountUpdate }: Pr
   const allDone = totalCompleted === declarations.length
 
   const handleDeclare = () => {
+    if (!ensureOnlineFor("save declaration progress")) return
     const newCount = count + 1
     setCounts((p) => ({ ...p, [decl.id]: newCount }))
     onCountUpdate(decl.id, newCount)
@@ -100,11 +104,12 @@ export function RecitationMode({ declarations, logs, userId, onCountUpdate }: Pr
   }
 
   const handleReset = async () => {
+    if (!ensureOnlineFor("reset this declaration count")) return
     setCounts((p) => ({ ...p, [decl.id]: 0 }))
     onCountUpdate(decl.id, 0)
     pending.current[decl.id] = 0
     clearTimeout(timers.current[decl.id])
-    const today = new Date().toISOString().split("T")[0]
+    const today = localCalendarDateString()
     await supabase.from("declaration_logs").upsert({
       user_id: userId, declaration_id: decl.id, date: today,
       current_count: 0, target_count: decl.target_count, completed: false,
@@ -115,11 +120,12 @@ export function RecitationMode({ declarations, logs, userId, onCountUpdate }: Pr
   const handleManualSet = async () => {
     const val = parseInt(manualValue)
     if (isNaN(val) || val < 0) return
+    if (!ensureOnlineFor("set this declaration count")) return
     setCounts((p) => ({ ...p, [decl.id]: val }))
     onCountUpdate(decl.id, val)
     pending.current[decl.id] = 0
     clearTimeout(timers.current[decl.id])
-    const today = new Date().toISOString().split("T")[0]
+    const today = localCalendarDateString()
     await supabase.from("declaration_logs").upsert({
       user_id: userId, declaration_id: decl.id, date: today,
       current_count: val, target_count: decl.target_count, completed: val >= decl.target_count,
@@ -132,7 +138,9 @@ export function RecitationMode({ declarations, logs, userId, onCountUpdate }: Pr
     // Flush current before navigating
     if (pending.current[decl.id] > 0) {
       clearTimeout(timers.current[decl.id])
-      flushOne(decl.id, pending.current[decl.id])
+      if (isOnlineNow()) {
+        flushOne(decl.id, pending.current[decl.id])
+      }
       pending.current[decl.id] = 0
     }
     setCurrent((p) => Math.max(0, Math.min(declarations.length - 1, p + dir)))
@@ -238,7 +246,7 @@ export function RecitationMode({ declarations, logs, userId, onCountUpdate }: Pr
           return (
             <button
               key={d.id}
-              onClick={() => { navigate(0); setCurrent(i) }}
+              onClick={() => setCurrent(i)}
               className={`w-2 h-2 rounded-full transition-all ${
                 i === current
                   ? "bg-[#F9D57E] w-4"

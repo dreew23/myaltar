@@ -1,10 +1,15 @@
 import { redirect } from "next/navigation"
+import { normalizeDailyFocusRow, type DailyFocusRow } from "@/lib/daily-focus-checklist"
+import { localCalendarDateString } from "@/lib/prayer-week"
 import { createClient } from "@/lib/supabase/server"
 import { getTodayIntercessionForUser } from "@/lib/data/user-config"
 import type { PersonalYearConfigRow } from "@/lib/personal-year"
 import { DashboardClient } from "./dashboard-client"
 
 export const metadata = { title: "DOMINION | ALTAR" }
+
+/** Always read fresh dashboard data after client mutations (daily focus checklist, etc.) */
+export const dynamic = "force-dynamic"
 
 function safeTodayLog(raw: Record<string, unknown> | null) {
   if (!raw) return null
@@ -27,17 +32,17 @@ export default async function DashboardPage() {
   const todayIntercession = await getTodayIntercessionForUser(supabase, user.id)
 
   const today = new Date()
-  const todayStr = today.toISOString().split("T")[0]
-  
+  const todayStr = localCalendarDateString(today)
+
   // Get start of week (Monday)
   const startOfWeek = new Date(today)
   const day = today.getDay()
   const daysBack = day === 0 ? 6 : day - 1
   startOfWeek.setDate(today.getDate() - daysBack)
-  const startOfWeekStr = startOfWeek.toISOString().split("T")[0]
-  
+  const startOfWeekStr = localCalendarDateString(startOfWeek)
+
   // Get start of month
-  const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split("T")[0]
+  const startOfMonth = localCalendarDateString(new Date(today.getFullYear(), today.getMonth(), 1))
 
   let devotionsRes = { data: [] as { date: string; prayer_complete?: boolean }[] }
   let downloadsRes = { data: [] as { id: string }[] }
@@ -60,6 +65,7 @@ export default async function DashboardPage() {
   let latestCompletedPulseRes = {
     data: null as { date: string; session_quality: number | null } | null,
   }
+  let todayDailyFocusRes = { data: null as DailyFocusRow | null }
 
   try {
     const [dev, dl, sem, today, weekly, prayerSession, pulseSession, weeklyGoals, personalYears, latestPulse] =
@@ -125,18 +131,34 @@ export default async function DashboardPage() {
         .limit(1)
         .maybeSingle(),
     ])
-    devotionsRes = dev
-    downloadsRes = dl
-    sermonsRes = sem
-    todayLogRes = today
-    weeklyPrincipleRes = weekly
+    devotionsRes = { data: dev.data ?? [] }
+    downloadsRes = { data: dl.data ?? [] }
+    sermonsRes = { data: sem.data ?? [] }
+    todayLogRes = { data: today.data ?? null }
+    weeklyPrincipleRes = { data: weekly.data ?? null }
     todayPrayerSessionRes = { data: prayerSession.data?.[0] ?? null }
-    todayPulseSessionRes = pulseSession
-    weeklyGoalsRes = weeklyGoals
+    todayPulseSessionRes = { data: pulseSession.data ?? null }
+    weeklyGoalsRes = { data: weeklyGoals.data ?? null }
     personalYearsRes = { data: personalYears.data ?? [] }
-    latestCompletedPulseRes = latestPulse
+    latestCompletedPulseRes = { data: latestPulse.data ?? null }
   } catch {
     // Tables may not exist; dashboard still renders with zeros
+  }
+
+  try {
+    const { data: focusRow, error: focusErr } = await supabase
+      .from("daily_focus")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("date", todayStr)
+      .maybeSingle()
+    if (!focusErr && focusRow) {
+      todayDailyFocusRes = { data: normalizeDailyFocusRow(focusRow as Record<string, unknown>) }
+    } else if (!focusErr) {
+      todayDailyFocusRes = { data: null }
+    }
+  } catch {
+    // daily_focus may not exist in older DBs
   }
 
   const prayerStreak = devotionsRes.data?.filter((d) => d.prayer_complete).length ?? 0
@@ -267,6 +289,12 @@ export default async function DashboardPage() {
     focus: Array.isArray(todayIntercession?.focus) ? todayIntercession.focus : [],
   }
 
+  const todayDailyFocusLabel = new Date(todayStr + "T12:00:00").toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  })
+
   return (
     <DashboardClient
       prayerStreak={prayerStreak}
@@ -283,6 +311,9 @@ export default async function DashboardPage() {
       weeklySermonsList={weeklySermonsList}
       weeklyGoals={weeklyGoalsForDisplay}
       weekStartStr={startOfWeekStr}
+      todayDailyFocus={todayDailyFocusRes.data}
+      todayDailyFocusLabel={todayDailyFocusLabel}
+      todayDateStr={todayStr}
       todayIntercession={safeIntercession}
       personalYears={(personalYearsRes.data ?? []) as PersonalYearConfigRow[]}
     />

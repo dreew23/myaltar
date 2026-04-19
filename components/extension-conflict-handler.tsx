@@ -43,9 +43,10 @@ export default function ExtensionConflictHandler() {
           if (!window.chrome) {
             window.chrome = {} as any
           }
+          const chromeApi = window.chrome
 
-          if (!window.chrome.runtime) {
-            window.chrome.runtime = {
+          if (chromeApi && !chromeApi.runtime) {
+            chromeApi.runtime = {
               connect: () => {
                 // Return a dummy object instead of throwing an error
                 return {
@@ -108,7 +109,12 @@ export default function ExtensionConflictHandler() {
                 try {
                   // Safely get className as string
                   const className = node.className
-                  const classNameStr = typeof className === "string" ? className : className?.toString() || ""
+                  const classNameStr =
+                    typeof className === "string"
+                      ? className
+                      : typeof className === "object" && className !== null && "baseVal" in className
+                        ? String((className as { baseVal: string }).baseVal)
+                        : String(className)
 
                   // Safely get id
                   const nodeId = node.id || ""

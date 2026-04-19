@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase/server"
+import { localCalendarDateString } from "@/lib/prayer-week"
 import { getGoalsForUser } from "@/lib/data/user-config"
 import type { PersonalYearConfigRow } from "@/lib/personal-year"
-import { GoalsClient } from "./goals-client"
+import { GoalsClient, type PulseCheck, type GoalNote, type Devotion } from "./goals-client"
 import { getQuarterProgress } from "@/lib/data/dominion"
 
 export const metadata = { title: "Spiritual Goals | ALTAR" }
@@ -18,15 +19,15 @@ export default async function GoalsPage() {
   const quarterCode = `${now.getFullYear()}-Q${quarter}`
   const quarterStart = new Date(now.getFullYear(), (quarter - 1) * 3, 1)
   const quarterEnd = new Date(now.getFullYear(), quarter * 3, 0)
-  const quarterStartStr = quarterStart.toISOString().split("T")[0]
-  const quarterEndStr = quarterEnd.toISOString().split("T")[0]
+  const quarterStartStr = localCalendarDateString(quarterStart)
+  const quarterEndStr = localCalendarDateString(quarterEnd)
 
   const yearStartStr = `${now.getFullYear()}-01-01`
-  const todayStr = now.toISOString().split("T")[0]
+  const todayStr = localCalendarDateString(now)
 
-  let pulseChecksRes = { data: [] as Record<string, unknown>[] }
-  let goalNotesRes = { data: [] as Record<string, unknown>[] }
-  let devotionsRes = { data: [] as Record<string, unknown>[] }
+  let pulseChecksRes = { data: [] as PulseCheck[] }
+  let goalNotesRes = { data: [] as GoalNote[] }
+  let devotionsRes = { data: [] as Devotion[] }
   let pulseSessionsRes = { data: [] as { id: string; date: string; phases_completed: string[] | null }[] }
   let wisdomTestimonyRes = { data: [] as { id: string }[] }
   let prayerAnsweredRes = { data: [] as { id: string }[] }
@@ -124,17 +125,17 @@ export default async function GoalsPage() {
       .eq("user_id", user.id)
       .order("year_number", { ascending: true }),
   ])
-    pulseChecksRes = pc
-    goalNotesRes = gn
-    devotionsRes = dv
-    pulseSessionsRes = ps
-    wisdomTestimonyRes = wt
-    prayerAnsweredRes = pa
-    yearWisdomRes = yw
-    yearTestimonyRes = yt
-    yearPrayerAnsweredRes = ypa
-    yearPrayerSessionsRes = yps
-    yearDeclarationLogsRes = ydl
+    pulseChecksRes = { data: (pc.data ?? []) as PulseCheck[] }
+    goalNotesRes = { data: (gn.data ?? []) as GoalNote[] }
+    devotionsRes = { data: (dv.data ?? []) as Devotion[] }
+    pulseSessionsRes = { data: (ps.data ?? []) as { id: string; date: string; phases_completed: string[] | null }[] }
+    wisdomTestimonyRes = { data: wt.data ?? [] }
+    prayerAnsweredRes = { data: pa.data ?? [] }
+    yearWisdomRes = { data: yw.data ?? [] }
+    yearTestimonyRes = { data: yt.data ?? [] }
+    yearPrayerAnsweredRes = { data: ypa.data ?? [] }
+    yearPrayerSessionsRes = { data: yps.data ?? [] }
+    yearDeclarationLogsRes = { data: ydl.data ?? [] }
     personalYearsRes = { data: (py.data ?? []) as PersonalYearConfigRow[] }
   } catch (e) {
     console.error("[goals] Fetch error:", e)

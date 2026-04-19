@@ -30,6 +30,13 @@ import {
 } from "@/lib/pulse-complete-payload"
 import type { PersonalYearConfigRow } from "@/lib/personal-year"
 import {
+  completedSnapshotFromRow,
+  dailyFocusUpsertPayload,
+  EMPTY_DAILY_FOCUS_CHECKS,
+  normalizeDailyFocusRow,
+  type DailyFocusRow,
+} from "@/lib/daily-focus-checklist"
+import {
   formatDualPulseContextLine,
   formatCalendarQuarterEndingLine,
   getCalendarQuarterProgress,
@@ -452,7 +459,25 @@ export function PulseClient(props: PulseClientProps) {
 
   const saveDailyFocus = useCallback(
     async (date: string, row: { focus_1: string; focus_2: string; focus_3: string; goal_1?: string; goal_2?: string; goal_3?: string }) => {
-      await supabase.from("daily_focus").upsert({ user_id: props.userId, date, ...row }, { onConflict: "user_id,date" })
+      const { data: existingRaw } = await supabase
+        .from("daily_focus")
+        .select("*")
+        .eq("user_id", props.userId)
+        .eq("date", date)
+        .maybeSingle()
+      const prev = existingRaw ? normalizeDailyFocusRow(existingRaw as Record<string, unknown>) : null
+      const textRow: DailyFocusRow = {
+        focus_1: row.focus_1 ?? prev?.focus_1 ?? null,
+        focus_2: row.focus_2 ?? prev?.focus_2 ?? null,
+        focus_3: row.focus_3 ?? prev?.focus_3 ?? null,
+        goal_1: row.goal_1 ?? prev?.goal_1 ?? null,
+        goal_2: row.goal_2 ?? prev?.goal_2 ?? null,
+        goal_3: row.goal_3 ?? prev?.goal_3 ?? null,
+      }
+      const completed = prev ? completedSnapshotFromRow(prev) : EMPTY_DAILY_FOCUS_CHECKS
+      await supabase
+        .from("daily_focus")
+        .upsert(dailyFocusUpsertPayload(props.userId, date, textRow, completed), { onConflict: "user_id,date" })
       setLastSavedAt(Date.now())
       router.refresh()
     },

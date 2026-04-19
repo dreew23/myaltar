@@ -18,6 +18,17 @@ import type { PersonalYearConfigRow } from "@/lib/personal-year"
 import { QuickCaptureForm } from "@/app/app/downloads/downloads-client"
 import { SessionQualityStars } from "@/components/app/pulse/session-history"
 import { SESSION_QUALITY_LABELS } from "@/lib/pulse"
+import { localCalendarDateString } from "@/lib/prayer-week"
+import {
+  type DailyFocusCompletedKey,
+  type DailyFocusRow,
+  EMPTY_DAILY_FOCUS_CHECKS,
+  buildDailyFocusChecklist,
+  completedSnapshotFromRow,
+  dailyFocusServerSyncToken,
+  dailyFocusUpsertPayload,
+  normalizeDailyFocusRow,
+} from "@/lib/daily-focus-checklist"
 
 interface WeeklyGoalsRow {
   id: string
@@ -63,6 +74,11 @@ interface Props {
   weeklySermonsList?: { id: string; sermon_id: string; title: string; listened: boolean }[]
   weeklyGoals: WeeklyGoalsRow | null
   weekStartStr: string
+  /** Today's row from Phase 5 "Daily focus" in Sunday Planning (`daily_focus`). */
+  todayDailyFocus: DailyFocusRow | null
+  todayDailyFocusLabel: string
+  /** Local calendar date (YYYY-MM-DD) for `daily_focus` updates — must match server `todayStr`. */
+  todayDateStr: string
   todayIntercession: { theme: string; focus: string[] }
   personalYears: PersonalYearConfigRow[]
 }
@@ -74,6 +90,9 @@ export function DashboardClient({
   todayLog, todayPrayerSession, todayPulseSession, latestCompletedPulse, userId, weeklySermonPrinciple,
   weeklyPrincipleSermonTitle, weeklySermonsList = [],
   weeklyGoals, weekStartStr,
+  todayDailyFocus,
+  todayDailyFocusLabel,
+  todayDateStr,
   todayIntercession,
   personalYears,
 }: Props) {
@@ -85,6 +104,26 @@ export function DashboardClient({
   const personal = useMemo(() => getPersonalYearProgress(personalYears), [personalYears])
   const calendarQ = useMemo(() => getCalendarQuarterProgress(), [])
   const sunday = isSunday()
+
+  const dailyFocusChecklistItems = useMemo(
+    () => (todayDailyFocus ? buildDailyFocusChecklist(todayDailyFocus) : []),
+    [todayDailyFocus]
+  )
+
+  const [dailyFocusCompleted, setDailyFocusCompleted] = useState(EMPTY_DAILY_FOCUS_CHECKS)
+
+  /** Primitives-only sync key — avoids resetting checklist when parent passes a new object ref with the same server data */
+  const dailyFocusSyncKey = dailyFocusServerSyncToken(todayDateStr, todayDailyFocus)
+
+  useEffect(() => {
+    if (!todayDailyFocus) {
+      setDailyFocusCompleted(EMPTY_DAILY_FOCUS_CHECKS)
+      return
+    }
+    const snap = completedSnapshotFromRow(todayDailyFocus)
+    setDailyFocusCompleted(snap)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- token encodes todayDailyFocus; object ref alone must not re-sync
+  }, [dailyFocusSyncKey])
 
   function formatBarDateRange(startStr: string, endStr: string) {
     const a = new Date(startStr + "T12:00:00")
@@ -134,10 +173,65 @@ export function DashboardClient({
     }
   }, [weeklyGoals?.id, weeklyGoals?.goal_1_text, weeklyGoals?.goal_2_text, weeklyGoals?.goal_3_text])
 
+  const weeklyGoalSlotsWithText = useMemo(() => {
+    const slots: (1 | 2 | 3)[] = []
+    if (localWeeklyGoals.goal_1_text?.trim()) slots.push(1)
+    if (localWeeklyGoals.goal_2_text?.trim()) slots.push(2)
+    if (localWeeklyGoals.goal_3_text?.trim()) slots.push(3)
+    return slots
+  }, [localWeeklyGoals.goal_1_text, localWeeklyGoals.goal_2_text, localWeeklyGoals.goal_3_text])
+
+  const weeklyGoalsAllDone =
+    weeklyGoalSlotsWithText.length === 0 ||
+    weeklyGoalSlotsWithText.every((slot) =>
+      slot === 1
+        ? localWeeklyGoals.goal_1_completed
+        : slot === 2
+          ? localWeeklyGoals.goal_2_completed
+          : localWeeklyGoals.goal_3_completed
+    )
+
+  const allDailyPlanDoneOrNA =
+    dailyFocusChecklistItems.length === 0 ||
+    dailyFocusChecklistItems.every((item) => dailyFocusCompleted[item.completedKey])
+
+  const hasThisWeekFocusTrackers =
+    showWeeklyGoalsForm || weeklyGoalSlotsWithText.length > 0 || dailyFocusChecklistItems.length > 0
+
+  const allThisWeekFocusComplete =
+    hasThisWeekFocusTrackers && weeklyGoalsAllDone && allDailyPlanDoneOrNA
+
+  const [showThisWeekFocusForm, setShowThisWeekFocusForm] = useState(() => {
+    const g = weeklyGoals
+    const slots: (1 | 2 | 3)[] = []
+    if (g?.goal_1_text?.trim()) slots.push(1)
+    if (g?.goal_2_text?.trim()) slots.push(2)
+    if (g?.goal_3_text?.trim()) slots.push(3)
+    const wDone =
+      slots.length === 0 ||
+      slots.every((s) =>
+        s === 1 ? Boolean(g?.goal_1_completed) : s === 2 ? Boolean(g?.goal_2_completed) : Boolean(g?.goal_3_completed)
+      )
+    const items = todayDailyFocus ? buildDailyFocusChecklist(todayDailyFocus) : []
+    const snap = todayDailyFocus ? completedSnapshotFromRow(todayDailyFocus) : EMPTY_DAILY_FOCUS_CHECKS
+    const dDone = items.length === 0 || items.every((i) => snap[i.completedKey])
+    const has = slots.length > 0 || items.length > 0
+    if (!has) return true
+    return !(wDone && dDone)
+  })
+
+  useEffect(() => {
+    if (!hasThisWeekFocusTrackers) {
+      setShowThisWeekFocusForm(true)
+      return
+    }
+    setShowThisWeekFocusForm(!allThisWeekFocusComplete)
+  }, [hasThisWeekFocusTrackers, allThisWeekFocusComplete])
+
   const saveLog = async (newLog: typeof log) => {
     setSaving(true)
     const supabase = createClient()
-    const today = new Date().toISOString().split("T")[0]
+    const today = localCalendarDateString()
 
     const fullData = {
       user_id: userId,
@@ -195,6 +289,29 @@ export function DashboardClient({
     if (slot === 3) next.goal_3_completed = !next.goal_3_completed
     setLocalWeeklyGoals(next)
     saveWeeklyGoals(next)
+  }
+
+  const toggleDailyFocusCompleted = async (key: DailyFocusCompletedKey) => {
+    if (!todayDailyFocus) return
+    const nextVal = !dailyFocusCompleted[key]
+    const merged = { ...dailyFocusCompleted, [key]: nextVal }
+    setDailyFocusCompleted(merged)
+    const supabase = createClient()
+    const payload = dailyFocusUpsertPayload(userId, todayDateStr, todayDailyFocus, merged)
+    const { data: raw, error } = await supabase
+      .from("daily_focus")
+      .upsert(payload, { onConflict: "user_id,date" })
+      .select("*")
+      .maybeSingle()
+    if (error) {
+      console.error("[Dashboard] daily_focus checklist:", error.message)
+      setDailyFocusCompleted((prev) => ({ ...prev, [key]: !nextVal }))
+      return
+    }
+    if (raw) {
+      setDailyFocusCompleted(completedSnapshotFromRow(normalizeDailyFocusRow(raw as Record<string, unknown>)))
+    }
+    router.refresh()
   }
 
   return (
@@ -564,112 +681,223 @@ export function DashboardClient({
             <h3 className="font-playfair text-base font-bold text-[#3C1E38] mb-3 flex items-center gap-2">
               <Lightbulb className="w-4 h-4 text-[#A7C2D7]" /> This Week&apos;s Focus
             </h3>
-            {weeklySermonPrinciple ? (
-              <div className="p-3 rounded-lg bg-[#A7C2D7]/5 border border-[#A7C2D7]/10 mb-3">
-                <p className="font-garamond text-sm italic text-[#3C1E38]">{weeklySermonPrinciple}</p>
-                {weeklyPrincipleSermonTitle && <p className="text-xs text-[#3C1E38]/50 mt-1">{weeklyPrincipleSermonTitle}</p>}
-                <Link href="/app/sermons#this-week" className="text-xs text-[#A7C2D7] font-medium mt-1 inline-block hover:underline">Change</Link>
-              </div>
-            ) : weeklySermonsList.length > 0 ? (
-              <div className="mb-3">
-                <p className="text-sm text-[#3C1E38]/60 mb-2">{weeklySermonsList.length} sermons planned this week — select your principle</p>
-                <Link href="/app/sermons#this-week" className="text-xs text-[#A7C2D7] font-medium hover:underline">Go to This Week →</Link>
-              </div>
-            ) : (
-              <div className="mb-3">
-                <p className="text-sm text-[#3C1E38]/60 mb-2">Plan your sermons for this week.</p>
-                <Link href="/app/sermons#this-week" className="inline-flex items-center gap-1 text-sm font-medium text-[#A7C2D7] hover:underline">
-                  + Add Sermons <ArrowRight className="w-3.5 h-3.5" />
-                </Link>
-              </div>
-            )}
-            {weeklySermonsList.length > 0 && (
-              <div className="mb-4">
-                <p className="text-xs font-medium text-[#3C1E38]/50 mb-1.5">
-                  Sermon Playlist: {weeklySermonsList.filter((w) => w.listened).length} of {weeklySermonsList.length} listened
+            {!showThisWeekFocusForm && allThisWeekFocusComplete && hasThisWeekFocusTrackers ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+                  <CheckCircle2 className="h-5 w-5 flex-shrink-0 text-emerald-500" />
+                  <span className="text-sm font-medium text-[#3C1E38]">Completed</span>
+                </div>
+                <p className="text-xs text-[#3C1E38]/70">
+                  {[
+                    weeklySermonPrinciple ? "Weekly principle set" : null,
+                    weeklySermonsList.length > 0
+                      ? `${weeklySermonsList.filter((w) => w.listened).length}/${weeklySermonsList.length} sermons heard`
+                      : null,
+                    weeklyGoalSlotsWithText.length > 0
+                      ? weeklyGoalSlotsWithText
+                          .map((slot) => {
+                            const raw =
+                              slot === 1
+                                ? localWeeklyGoals.goal_1_text
+                                : slot === 2
+                                  ? localWeeklyGoals.goal_2_text
+                                  : localWeeklyGoals.goal_3_text
+                            const t = (raw ?? "").trim()
+                            if (!t) return null
+                            return t.length > 40 ? `${t.slice(0, 40)}… ✓` : `${t} ✓`
+                          })
+                          .filter(Boolean)
+                          .join(" · ")
+                      : null,
+                    dailyFocusChecklistItems.length > 0
+                      ? `Today: ${dailyFocusChecklistItems.map((i) => i.text).join(" · ")}`
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" — ")}
                 </p>
-                <ul className="space-y-1">
-                  {weeklySermonsList.slice(0, 6).map((w) => (
-                    <li key={w.id}>
-                      <Link href="/app/sermons#this-week" className="flex items-center gap-2 text-xs text-[#3C1E38]/70 hover:text-[#A7C2D7]">
-                        {w.listened ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" /> : <Circle className="w-3.5 h-3.5 text-[#3C1E38]/30 flex-shrink-0" />}
-                        <span className="truncate">{w.title}</span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-                {weeklySermonsList.length > 6 && <p className="text-[10px] text-[#3C1E38]/40 mt-1">+{weeklySermonsList.length - 6} more</p>}
-              </div>
-            )}
-
-            {/* This week's goal focus — from Sunday Planning session */}
-            <p className="text-xs font-medium text-[#3C1E38]/50 mb-1.5 mt-4">
-              This week&apos;s goal focus <span className="text-[#3C1E38]/40">(from Sunday Planning)</span>
-            </p>
-            {(localWeeklyGoals.goal_1_text || localWeeklyGoals.goal_2_text || localWeeklyGoals.goal_3_text || showWeeklyGoalsForm) ? (
-              <div className="space-y-2">
-                {[1, 2, 3].map((slot) => (
-                  <div key={slot} className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => toggleWeeklyGoalCompleted(slot as 1 | 2 | 3)}
-                      className="flex-shrink-0 mt-0.5"
-                    >
-                      {(slot === 1 ? localWeeklyGoals.goal_1_completed : slot === 2 ? localWeeklyGoals.goal_2_completed : localWeeklyGoals.goal_3_completed) ? (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                      ) : (
-                        <Circle className="w-4 h-4 text-[#3C1E38]/30" />
-                      )}
-                    </button>
-                    <input
-                      type="text"
-                      value={slot === 1 ? localWeeklyGoals.goal_1_text : slot === 2 ? localWeeklyGoals.goal_2_text : localWeeklyGoals.goal_3_text}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        setLocalWeeklyGoals((prev) => ({
-                          ...prev,
-                          ...(slot === 1 && { goal_1_text: v }),
-                          ...(slot === 2 && { goal_2_text: v }),
-                          ...(slot === 3 && { goal_3_text: v }),
-                        }))
-                      }}
-                      onBlur={() => saveWeeklyGoals(localWeeklyGoals)}
-                      placeholder={`Goal ${slot}`}
-                      className="flex-1 min-w-0 text-sm border border-[#A7C2D7]/20 rounded-lg px-2.5 py-1.5 focus:ring-1 focus:ring-[#A7C2D7]/30 outline-none"
-                    />
-                    <select
-                      value={slot === 1 ? localWeeklyGoals.goal_1_code : slot === 2 ? localWeeklyGoals.goal_2_code : localWeeklyGoals.goal_3_code}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        setLocalWeeklyGoals((prev) => ({
-                          ...prev,
-                          ...(slot === 1 && { goal_1_code: v }),
-                          ...(slot === 2 && { goal_2_code: v }),
-                          ...(slot === 3 && { goal_3_code: v }),
-                        }))
-                      }}
-                      onBlur={() => saveWeeklyGoals(localWeeklyGoals)}
-                      className="w-12 text-xs border border-[#A7C2D7]/20 rounded-lg px-1.5 py-1.5 bg-white text-[#3C1E38] focus:ring-1 focus:ring-[#A7C2D7]/30 outline-none"
-                    >
-                      {GOAL_CODES.map((c) => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
-                  </div>
-                ))}
-                {savingGoals && <p className="text-[10px] text-[#3C1E38]/40">Saving…</p>}
-                <Link href="/app/pulse" className="inline-flex items-center gap-1 text-xs text-[#A7C2D7] font-medium mt-1 hover:underline">
-                  Open Sunday Planning <ArrowRight className="w-3 h-3" />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowThisWeekFocusForm(true)}
+                  className="w-full border-[#A7C2D7]/30 text-[#3C1E38]/80 hover:bg-[#A7C2D7]/10"
+                >
+                  Edit focus
+                </Button>
+                <Link
+                  href="/app/prayer-history"
+                  className="flex items-center justify-center gap-1 text-xs font-medium text-[#A7C2D7] hover:underline"
+                >
+                  View Past Logs <ChevronRight className="h-3 w-3" />
                 </Link>
               </div>
             ) : (
-              <div className="mb-2">
-                <p className="text-sm text-[#3C1E38]/60 mb-2">Set your top 3 goals in your Sunday Planning session; they&apos;ll show here.</p>
-                <Link href="/app/pulse" className="inline-flex items-center gap-1 text-sm font-medium text-[#A7C2D7] hover:underline">
-                  {sunday ? "Set in Sunday Planning" : "Open Sunday Planning"}
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </Link>
-              </div>
+              <>
+                {weeklySermonPrinciple ? (
+                  <div className="p-3 rounded-lg bg-[#A7C2D7]/5 border border-[#A7C2D7]/10 mb-3">
+                    <p className="font-garamond text-sm italic text-[#3C1E38]">{weeklySermonPrinciple}</p>
+                    {weeklyPrincipleSermonTitle && <p className="text-xs text-[#3C1E38]/50 mt-1">{weeklyPrincipleSermonTitle}</p>}
+                    <Link href="/app/sermons#this-week" className="text-xs text-[#A7C2D7] font-medium mt-1 inline-block hover:underline">Change</Link>
+                  </div>
+                ) : weeklySermonsList.length > 0 ? (
+                  <div className="mb-3">
+                    <p className="text-sm text-[#3C1E38]/60 mb-2">{weeklySermonsList.length} sermons planned this week — select your principle</p>
+                    <Link href="/app/sermons#this-week" className="text-xs text-[#A7C2D7] font-medium hover:underline">Go to This Week →</Link>
+                  </div>
+                ) : (
+                  <div className="mb-3">
+                    <p className="text-sm text-[#3C1E38]/60 mb-2">Plan your sermons for this week.</p>
+                    <Link href="/app/sermons#this-week" className="inline-flex items-center gap-1 text-sm font-medium text-[#A7C2D7] hover:underline">
+                      + Add Sermons <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
+                )}
+                {weeklySermonsList.length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-xs font-medium text-[#3C1E38]/50 mb-1.5">
+                      Sermon Playlist: {weeklySermonsList.filter((w) => w.listened).length} of {weeklySermonsList.length} listened
+                    </p>
+                    <ul className="space-y-1">
+                      {weeklySermonsList.slice(0, 6).map((w) => (
+                        <li key={w.id}>
+                          <Link href="/app/sermons#this-week" className="flex items-center gap-2 text-xs text-[#3C1E38]/70 hover:text-[#A7C2D7]">
+                            {w.listened ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" /> : <Circle className="w-3.5 h-3.5 text-[#3C1E38]/30 flex-shrink-0" />}
+                            <span className="truncate">{w.title}</span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                    {weeklySermonsList.length > 6 && <p className="text-[10px] text-[#3C1E38]/40 mt-1">+{weeklySermonsList.length - 6} more</p>}
+                  </div>
+                )}
+
+                {/* Today's daily focus — Phase 5 per-day plan from Sunday Planning */}
+                <div className="mt-4 pt-4 border-t border-[#A7C2D7]/10">
+                  <p className="text-xs font-medium text-[#3C1E38]/50 mb-1.5">
+                    Today&apos;s plan <span className="text-[#3C1E38]/40">({todayDailyFocusLabel})</span>
+                  </p>
+                  <p className="text-[10px] text-[#3C1E38]/40 mb-2">From Sunday Planning — Daily focus (Phase 5)</p>
+                  {dailyFocusChecklistItems.length > 0 ? (
+                    <div className="space-y-2">
+                      <ul className="space-y-2">
+                        {dailyFocusChecklistItems.map((item) => {
+                          const done = dailyFocusCompleted[item.completedKey]
+                          return (
+                            <li key={item.completedKey}>
+                              <button
+                                type="button"
+                                aria-pressed={done}
+                                aria-label={done ? `Mark incomplete: ${item.text}` : `Mark complete: ${item.text}`}
+                                onClick={() => void toggleDailyFocusCompleted(item.completedKey)}
+                                className="flex w-full items-start gap-2 rounded-lg border border-transparent p-1.5 text-left transition-colors hover:border-[#A7C2D7]/25 hover:bg-[#A7C2D7]/5"
+                              >
+                                <span className="mt-0.5 flex-shrink-0">
+                                  {done ? (
+                                    <CheckCircle2 className="h-4 w-4 text-emerald-500" aria-hidden />
+                                  ) : (
+                                    <Circle className="h-4 w-4 text-[#3C1E38]/30" aria-hidden />
+                                  )}
+                                </span>
+                                <span
+                                  className={`text-sm leading-snug text-[#3C1E38]/90 ${done ? "text-[#3C1E38]/45 line-through" : ""}`}
+                                >
+                                  {item.text}
+                                </span>
+                              </button>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                      <p className="text-[10px] text-[#3C1E38]/40">
+                        Checklist is saved to your account. View this date anytime in{" "}
+                        <Link href="/app/prayer-history" className="font-medium text-[#A7C2D7] hover:underline">
+                          Prayer Log History
+                        </Link>
+                        .
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-[#3C1E38]/55">
+                      No daily focus saved for today yet. Add it in{" "}
+                      <Link href="/app/pulse" className="text-[#A7C2D7] font-medium hover:underline">
+                        Sunday Planning
+                      </Link>{" "}
+                      under Phase 5 — Daily focus.
+                    </p>
+                  )}
+                </div>
+
+                {/* This week's goal focus — from Sunday Planning session */}
+                <p className="text-xs font-medium text-[#3C1E38]/50 mb-1.5 mt-4">
+                  This week&apos;s goal focus <span className="text-[#3C1E38]/40">(from Sunday Planning)</span>
+                </p>
+                {(localWeeklyGoals.goal_1_text || localWeeklyGoals.goal_2_text || localWeeklyGoals.goal_3_text || showWeeklyGoalsForm) ? (
+                  <div className="space-y-2">
+                    {[1, 2, 3].map((slot) => (
+                      <div key={slot} className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => toggleWeeklyGoalCompleted(slot as 1 | 2 | 3)}
+                          className="flex-shrink-0 mt-0.5"
+                        >
+                          {(slot === 1 ? localWeeklyGoals.goal_1_completed : slot === 2 ? localWeeklyGoals.goal_2_completed : localWeeklyGoals.goal_3_completed) ? (
+                            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                          ) : (
+                            <Circle className="w-4 h-4 text-[#3C1E38]/30" />
+                          )}
+                        </button>
+                        <input
+                          type="text"
+                          value={slot === 1 ? localWeeklyGoals.goal_1_text : slot === 2 ? localWeeklyGoals.goal_2_text : localWeeklyGoals.goal_3_text}
+                          onChange={(e) => {
+                            const v = e.target.value
+                            setLocalWeeklyGoals((prev) => ({
+                              ...prev,
+                              ...(slot === 1 && { goal_1_text: v }),
+                              ...(slot === 2 && { goal_2_text: v }),
+                              ...(slot === 3 && { goal_3_text: v }),
+                            }))
+                          }}
+                          onBlur={() => saveWeeklyGoals(localWeeklyGoals)}
+                          placeholder={`Goal ${slot}`}
+                          className="flex-1 min-w-0 text-sm border border-[#A7C2D7]/20 rounded-lg px-2.5 py-1.5 focus:ring-1 focus:ring-[#A7C2D7]/30 outline-none"
+                        />
+                        <select
+                          value={slot === 1 ? localWeeklyGoals.goal_1_code : slot === 2 ? localWeeklyGoals.goal_2_code : localWeeklyGoals.goal_3_code}
+                          onChange={(e) => {
+                            const v = e.target.value
+                            setLocalWeeklyGoals((prev) => ({
+                              ...prev,
+                              ...(slot === 1 && { goal_1_code: v }),
+                              ...(slot === 2 && { goal_2_code: v }),
+                              ...(slot === 3 && { goal_3_code: v }),
+                            }))
+                          }}
+                          onBlur={() => saveWeeklyGoals(localWeeklyGoals)}
+                          className="w-12 text-xs border border-[#A7C2D7]/20 rounded-lg px-1.5 py-1.5 bg-white text-[#3C1E38] focus:ring-1 focus:ring-[#A7C2D7]/30 outline-none"
+                        >
+                          {GOAL_CODES.map((c) => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
+                    {savingGoals && <p className="text-[10px] text-[#3C1E38]/40">Saving…</p>}
+                    <Link href="/app/pulse" className="inline-flex items-center gap-1 text-xs text-[#A7C2D7] font-medium mt-1 hover:underline">
+                      Open Sunday Planning <ArrowRight className="w-3 h-3" />
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="mb-2">
+                    <p className="text-sm text-[#3C1E38]/60 mb-2">Set your top 3 goals in your Sunday Planning session; they&apos;ll show here.</p>
+                    <Link href="/app/pulse" className="inline-flex items-center gap-1 text-sm font-medium text-[#A7C2D7] hover:underline">
+                      {sunday ? "Set in Sunday Planning" : "Open Sunday Planning"}
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
+                )}
+              </>
             )}
             <Link href="/app/goals" className="flex items-center justify-center gap-1 text-xs text-[#A7C2D7] font-medium mt-4 hover:underline">
               View Strategic Goals <ChevronRight className="w-3 h-3" />

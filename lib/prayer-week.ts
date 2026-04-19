@@ -17,7 +17,7 @@ export function getMondayOfWeek(d = new Date()): Date {
 }
 
 export function mondayDateString(d = new Date()): string {
-  return getMondayOfWeek(d).toISOString().split("T")[0]!
+  return localCalendarDateString(getMondayOfWeek(d))
 }
 
 /** Long weekday from local calendar `YYYY-MM-DD` (e.g. "Tuesday"). */

@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import type { QuarterRow } from "./quarter-config"
+import { localCalendarDateString } from "@/lib/prayer-week"
 
 interface NewQuarterFlowProps {
   userId: string
@@ -32,13 +33,13 @@ export function NewQuarterFlow({ userId, currentQuarters, onClose, onComplete }:
     ? (() => {
         const d = new Date(activeQuarter.end_date + "T12:00:00")
         d.setDate(d.getDate() + 1)
-        return d.toISOString().split("T")[0]
+        return localCalendarDateString(d)
       })()
-    : new Date().toISOString().split("T")[0]
+    : localCalendarDateString()
   const defaultEnd = (() => {
     const d = new Date(nextStart + "T12:00:00")
     d.setDate(d.getDate() + 90)
-    return d.toISOString().split("T")[0]
+    return localCalendarDateString(d)
   })()
 
   const [form, setForm] = useState({
@@ -100,7 +101,7 @@ export function NewQuarterFlow({ userId, currentQuarters, onClose, onComplete }:
                   const start = e.target.value
                   const d = new Date(start + "T12:00:00")
                   d.setDate(d.getDate() + 90)
-                  setForm((p) => ({ ...p, start_date: start, end_date: d.toISOString().split("T")[0] }))
+                  setForm((p) => ({ ...p, start_date: start, end_date: localCalendarDateString(d) }))
                 }}
                 className="border-[#A7C2D7]/30"
               />

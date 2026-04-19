@@ -1,20 +1,20 @@
 import { createClient } from "@/lib/supabase/server"
 import { getTodayIntercessionForUser } from "@/lib/data/user-config"
-import { PrayersClient } from "./prayers-client"
+import { PrayersClient, type Prayer } from "./prayers-client"
 
 export default async function PrayersPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  let prayers: unknown[] = []
+  let prayers: Prayer[] = []
   try {
     const { data } = await supabase
       .from("prayers")
       .select("*")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
-    prayers = data ?? []
+    prayers = (data ?? []) as Prayer[]
   } catch (e) {
     console.error("[prayers] Fetch error:", e)
   }

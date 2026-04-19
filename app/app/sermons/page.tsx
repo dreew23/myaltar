@@ -1,15 +1,12 @@
 import { createClient } from "@/lib/supabase/server"
+import { getMondayOfWeek, localCalendarDateString } from "@/lib/prayer-week"
 import { SermonsClient } from "./sermons-client"
 
 export const metadata = { title: "Sermon Library | ALTAR" }
 
 /** Monday as start of week (e.g. Mar 16 - Mar 22) */
 function getWeekStartMonday(d: Date): string {
-  const x = new Date(d)
-  const day = x.getDay()
-  const daysBack = day === 0 ? 6 : day - 1
-  x.setDate(x.getDate() - daysBack)
-  return x.toISOString().split("T")[0]
+  return localCalendarDateString(getMondayOfWeek(d))
 }
 
 export default async function SermonsPage() {

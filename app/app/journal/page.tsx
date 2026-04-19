@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import type { WisdomEntry, AlignedDecision } from "@/lib/wisdom-log"
 import { JournalClient } from "./journal-client"
 
 export const metadata = { title: "Wisdom Log | ALTAR" }
@@ -8,8 +9,8 @@ export default async function JournalPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  let wisdomRes = { data: null as unknown[], error: { message: "" } }
-  let decisionsRes = { data: null as unknown[], error: { message: "" } }
+  let wisdomEntries: WisdomEntry[] = []
+  let decisions: AlignedDecision[] = []
   try {
     const [w, d] = await Promise.all([
       supabase
@@ -23,8 +24,8 @@ export default async function JournalPage() {
         .eq("user_id", user.id)
         .order("created_at", { ascending: false }),
     ])
-    wisdomRes = w
-    decisionsRes = d
+    wisdomEntries = (w.data ?? []) as WisdomEntry[]
+    decisions = (d.data ?? []) as AlignedDecision[]
   } catch {
     // Tables may not exist yet — run supabase/migrations/20250314_wisdom_entries_and_aligned_decisions.sql
   }
@@ -45,8 +46,8 @@ export default async function JournalPage() {
 
   return (
     <JournalClient
-      initialEntries={wisdomRes.data ?? []}
-      initialDecisions={decisionsRes.data ?? []}
+      initialEntries={wisdomEntries}
+      initialDecisions={decisions}
       activities={activities}
       userId={user.id}
     />

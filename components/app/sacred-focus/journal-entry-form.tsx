@@ -2,7 +2,9 @@
 
 import { useState, useRef, useEffect } from "react"
 import { Plus, Star, X } from "lucide-react"
+import { buildActivityJournalInsert } from "@/lib/activity-journal-insert"
 import { createClient } from "@/lib/supabase/client"
+import { ensureOnlineFor } from "@/lib/online-guard"
 import { toast } from "sonner"
 import type { EntryType, JournalEntry, SpiritualActivity } from "./types"
 import { ENTRY_TYPES, getSacredFocusEntryDateBounds, JOURNAL_OPTIONAL_FIELDS_BY_TYPE } from "./types"
@@ -43,22 +45,23 @@ export function JournalEntryForm({ activityId, activity, userId, onEntryAdded }:
 
   const handleSave = async () => {
     if (!selectedType || !content.trim()) return
+    if (!ensureOnlineFor("save this journal entry")) return
     if (entryDate < dateMin || entryDate > dateMax) {
       toast.error("Choose a date between the allowed range (not in the future).")
       return
     }
     setSaving(true)
 
-    const entry = {
-      user_id: userId,
-      activity_id: activityId,
-      entry_type: selectedType,
-      content: content.trim(),
-      scripture_reference: scriptureRef.trim() || null,
-      speaker: speaker.trim() || null,
-      is_highlight: isHighlight,
-      date: entryDate,
-    }
+    const entry = buildActivityJournalInsert({
+      userId,
+      activityId,
+      entryType: selectedType,
+      content,
+      scriptureRef,
+      speaker,
+      isHighlight,
+      entryDate,
+    })
 
     const supabase = createClient()
     const { data, error } = await supabase

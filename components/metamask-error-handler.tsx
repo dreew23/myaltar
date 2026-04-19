@@ -32,9 +32,10 @@ export default function MetaMaskErrorHandler() {
         if (!window.chrome) {
           window.chrome = {} as any
         }
+        const chromeApi = window.chrome
 
-        if (!window.chrome.runtime) {
-          window.chrome.runtime = {
+        if (chromeApi && !chromeApi.runtime) {
+          chromeApi.runtime = {
             connect: () => {
               // Return a dummy object instead of throwing an error
               return {

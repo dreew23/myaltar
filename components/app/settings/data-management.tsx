@@ -15,6 +15,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
+import { localCalendarDateString } from "@/lib/prayer-week"
 
 interface DataManagementProps {
   userId: string
@@ -71,7 +72,7 @@ export function DataManagement({
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `altar-backup-${new Date().toISOString().split("T")[0]}.json`
+      a.download = `altar-backup-${localCalendarDateString()}.json`
       a.click()
       URL.revokeObjectURL(url)
       toast.success("Data exported ✓")

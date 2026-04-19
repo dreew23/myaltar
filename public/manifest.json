@@ -7,6 +7,29 @@
   "background_color": "#1B2341",
   "theme_color": "#F9D57E",
   "orientation": "portrait",
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "Open your daily dashboard",
+      "url": "/app/dashboard",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Prayer",
+      "short_name": "Prayer",
+      "description": "Open prayer mode",
+      "url": "/app/prayer",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Log Wisdom",
+      "short_name": "Log",
+      "description": "Open journal to capture wisdom",
+      "url": "/app/journal?open=log",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ],
   "icons": [
     {
       "src": "/icons/icon.svg",

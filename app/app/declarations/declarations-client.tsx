@@ -9,6 +9,7 @@ import { History } from "@/components/app/declarations/history"
 import { EditFlow } from "@/components/app/declarations/edit-flow"
 import { FirstTime } from "@/components/app/declarations/first-time"
 import type { Declaration, DeclarationLog } from "@/components/app/declarations/types"
+import { localCalendarDateString } from "@/lib/prayer-week"
 
 interface Props {
   declarations: Declaration[]
@@ -50,7 +51,7 @@ export function DeclarationsClient({ declarations: initial, todayLogs: initialLo
         id: crypto.randomUUID(),
         user_id: userId,
         declaration_id: declId,
-        date: new Date().toISOString().split("T")[0],
+        date: localCalendarDateString(),
         current_count: count,
         target_count: target,
         completed: count >= target,

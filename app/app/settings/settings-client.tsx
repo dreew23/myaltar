@@ -25,7 +25,7 @@ import type { IntercessionDayRow } from "@/components/app/settings/intercession-
 import type { GoalRow } from "@/components/app/settings/goal-editor"
 import type { NotificationPrefs } from "@/components/app/settings/notifications-section"
 
-interface Profile {
+export interface SettingsProfile {
   id: string
   display_name: string | null
   avatar_url: string | null
@@ -35,7 +35,7 @@ interface Profile {
 
 interface SettingsClientProps {
   user: User
-  profile: Profile | null
+  profile: SettingsProfile | null
   personalYears: PersonalYearConfigRow[]
   quarters: QuarterRow[]
   intercessionSchedule: IntercessionDayRow[] | null

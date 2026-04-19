@@ -3,6 +3,8 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { createClient } from "@/lib/supabase/client"
+import { ensureOnlineFor } from "@/lib/online-guard"
+import { localCalendarDateString } from "@/lib/prayer-week"
 import type { AlignedDecision } from "@/lib/wisdom-log"
 import type { WisdomEntry } from "@/lib/wisdom-log"
 import { DECISION_CATEGORIES, LIFE_AREAS, GOAL_CODES } from "@/lib/wisdom-log"
@@ -62,9 +64,10 @@ export function DecisionFlowForm({ userId, onSaved, onCancel }: Props) {
 
   const handleSave = async () => {
     if (!form.description.trim()) return
+    if (!ensureOnlineFor("save this decision flow")) return
     setSaving(true)
     const supabase = createClient()
-    const today = new Date().toISOString().split("T")[0]
+    const today = localCalendarDateString()
 
     const summary = buildSummary()
 

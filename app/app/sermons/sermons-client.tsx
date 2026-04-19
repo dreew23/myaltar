@@ -14,6 +14,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Progress } from "@/components/ui/progress"
 import { createClient } from "@/lib/supabase/client"
 import { ThisWeekTab } from "@/components/app/sermons/this-week-tab"
+import { getMondayOfWeek, localCalendarDateString } from "@/lib/prayer-week"
 
 // ─── Types ───────────────────────────────────────────────────
 interface Sermon {
@@ -86,11 +87,7 @@ const categoryMap = Object.fromEntries(CATEGORIES.map((c) => [c.value, c]))
 // ─── Component ───────────────────────────────────────────────
 /** Monday as start of week */
 function getWeekStartMonday(d: Date): string {
-  const x = new Date(d)
-  const day = x.getDay()
-  const daysBack = day === 0 ? 6 : day - 1
-  x.setDate(x.getDate() - daysBack)
-  return x.toISOString().split("T")[0]
+  return localCalendarDateString(getMondayOfWeek(d))
 }
 
 export function SermonsClient({ sermons: initial, userId, initialWeekStartStr, initialWeeklySermons = [] }: Props) {
@@ -263,7 +260,9 @@ export function SermonsClient({ sermons: initial, userId, initialWeekStartStr, i
     const sermonMap = new Map(sermons.filter((s) => sermonIds.includes(s.id)).map((s) => [s.id, s]))
     if (sermonMap.size < sermonIds.length) {
       const { data: extra } = await supabase.from("sermons").select("id, title, speaker, category, mastery_key_principle").in("id", sermonIds)
-      extra?.forEach((s: { id: string; title: string; speaker: string; category: string; mastery_key_principle: string | null }) => sermonMap.set(s.id, s))
+      extra?.forEach((s: { id: string; title: string; speaker: string; category: string; mastery_key_principle: string | null }) =>
+        sermonMap.set(s.id, { ...s } as Sermon)
+      )
     }
     setWeeklySermons(ws.map((r) => {
       const s = sermonMap.get(r.sermon_id)
@@ -298,7 +297,7 @@ export function SermonsClient({ sermons: initial, userId, initialWeekStartStr, i
   }, [supabase, userId, weekStartStr, weeklySermons, loadWeeklySermons, router])
 
   const handleToggleListened = useCallback(async (wsId: string, listened: boolean) => {
-    const today = new Date().toISOString().split("T")[0]
+    const today = localCalendarDateString()
     await supabase.from("weekly_sermons").update({ listened, listened_date: listened ? today : null }).eq("id", wsId)
     await loadWeeklySermons(weekStartStr)
     router.refresh()
@@ -530,8 +529,8 @@ export function SermonsClient({ sermons: initial, userId, initialWeekStartStr, i
                   </div>
                   <div className="flex items-center gap-3 flex-shrink-0">
                     {sermon.resonance && <StarRating value={sermon.resonance} size="w-3.5 h-3.5" />}
-                    {sermon.mastered && <Crown className="w-4 h-4 text-[#F9D57E]" title="Mastered" />}
-                    {sermon.applied && <CheckCircle2 className="w-4 h-4 text-emerald-500" title="Applied" />}
+                    {sermon.mastered && <Crown className="w-4 h-4 text-[#F9D57E]" aria-label="Mastered" />}
+                    {sermon.applied && <CheckCircle2 className="w-4 h-4 text-emerald-500" aria-label="Applied" />}
                     <ChevronRight className="w-4 h-4 text-[#3C1E38]/20" />
                   </div>
                 </button>

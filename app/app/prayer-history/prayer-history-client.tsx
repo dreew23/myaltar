@@ -1,7 +1,9 @@
 "use client"
 
 import Link from "next/link"
-import { ArrowLeft, CheckCircle2, Circle, Flame, Headphones, Zap, Calendar } from "lucide-react"
+import { buildDailyFocusChecklist, type DailyFocusRow } from "@/lib/daily-focus-checklist"
+import { localCalendarDateString } from "@/lib/prayer-week"
+import { ArrowLeft, CheckCircle2, Circle, Flame, Headphones, Zap, Calendar, ChevronDown } from "lucide-react"
 
 interface LogEntry {
   id: string
@@ -16,17 +18,19 @@ interface LogEntry {
 
 interface Props {
   logs: LogEntry[]
+  /** Per calendar date: Phase 5 daily focus + saved checklist state from `daily_focus` */
+  dailyFocusByDate: Record<string, DailyFocusRow>
 }
 
-export function PrayerHistoryClient({ logs }: Props) {
+export function PrayerHistoryClient({ logs, dailyFocusByDate }: Props) {
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr + "T00:00:00")
     const today = new Date()
     const yesterday = new Date(today)
     yesterday.setDate(yesterday.getDate() - 1)
     
-    if (dateStr === today.toISOString().split("T")[0]) return "Today"
-    if (dateStr === yesterday.toISOString().split("T")[0]) return "Yesterday"
+    if (dateStr === localCalendarDateString(today)) return "Today"
+    if (dateStr === localCalendarDateString(yesterday)) return "Yesterday"
     
     return date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
   }
@@ -49,7 +53,9 @@ export function PrayerHistoryClient({ logs }: Props) {
         </Link>
         <div>
           <h1 className="font-playfair text-2xl font-bold text-[#3C1E38]">Prayer Log History</h1>
-          <p className="text-sm text-[#3C1E38]/50">Your spiritual journey over the past 30 days</p>
+          <p className="text-sm text-[#3C1E38]/50">
+            Your spiritual journey over the past 30 days — expand a day to see your saved Sunday Planning daily focus checklist.
+          </p>
         </div>
       </div>
 
@@ -93,7 +99,10 @@ export function PrayerHistoryClient({ logs }: Props) {
             <p className="text-xs text-[#3C1E38]/30 mt-1">Start logging your daily devotions from the dashboard</p>
           </div>
         ) : (
-          logs.map((log) => (
+          logs.map((log) => {
+            const df = dailyFocusByDate[log.date]
+            const dailyChecklist = df ? buildDailyFocusChecklist(df) : []
+            return (
             <div key={log.id} className="bg-white rounded-xl p-4 border border-[#A7C2D7]/10 hover:shadow-sm transition-shadow">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
@@ -156,8 +165,36 @@ export function PrayerHistoryClient({ logs }: Props) {
                   </ul>
                 </div>
               )}
+
+              {dailyChecklist.length > 0 && df && (
+                <details className="group mt-3 pt-3 border-t border-[#A7C2D7]/10">
+                  <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-[#A7C2D7] hover:underline [&::-webkit-details-marker]:hidden">
+                    <ChevronDown className="h-4 w-4 shrink-0 transition-transform group-open:rotate-180" aria-hidden />
+                    Daily plan checklist (Sunday Planning)
+                  </summary>
+                  <p className="mt-2 text-[10px] text-[#3C1E38]/40">Saved from your dashboard — same as Phase 5 daily focus for this date.</p>
+                  <ul className="mt-2 space-y-2">
+                    {dailyChecklist.map((item) => {
+                      const done = Boolean(df[item.completedKey])
+                      return (
+                        <li key={item.completedKey} className="flex items-start gap-2 text-sm">
+                          {done ? (
+                            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" aria-hidden />
+                          ) : (
+                            <Circle className="mt-0.5 h-4 w-4 shrink-0 text-[#3C1E38]/30" aria-hidden />
+                          )}
+                          <span className={done ? "leading-snug text-[#3C1E38]/45 line-through" : "leading-snug text-[#3C1E38]/85"}>
+                            {item.text}
+                          </span>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </details>
+              )}
             </div>
-          ))
+            )
+          })
         )}
       </div>
     </div>

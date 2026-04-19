@@ -111,15 +111,15 @@ export default function ChromeExtensionBlocker() {
         window.addEventListener("unhandledrejection", blockPromiseRejection, true)
 
         // 7. Override setTimeout and setInterval to catch extension code
-        const originalSetTimeout = window.setTimeout
-        const originalSetInterval = window.setInterval
+        const originalSetTimeout = window.setTimeout.bind(window)
+        const originalSetInterval = window.setInterval.bind(window)
 
-        window.setTimeout = (callback: any, delay?: number, ...args: any[]) => {
+        const patchedSetTimeout = (callback: TimerHandler, delay?: number, ...args: unknown[]) => {
           try {
             if (typeof callback === "function") {
-              const wrappedCallback = (...callbackArgs: any[]) => {
+              const wrappedCallback = (...callbackArgs: unknown[]) => {
                 try {
-                  return callback.apply(this, callbackArgs)
+                  return callback(...callbackArgs)
                 } catch (error) {
                   const errorMessage = String(error)
                   if (
@@ -132,13 +132,14 @@ export default function ChromeExtensionBlocker() {
                   throw error
                 }
               }
-              return originalSetTimeout.call(window, wrappedCallback, delay, ...args)
+              return originalSetTimeout(wrappedCallback as TimerHandler, delay, ...(args as []))
             }
-            return originalSetTimeout.call(window, callback, delay, ...args)
-          } catch (error) {
-            return 0 // Return dummy timer ID
+            return originalSetTimeout(callback, delay, ...(args as []))
+          } catch {
+            return originalSetTimeout(() => {}, 0)
           }
         }
+        window.setTimeout = patchedSetTimeout as typeof window.setTimeout
 
         // 8. Prevent any dynamic script injection from extensions
         const originalAppendChild = Element.prototype.appendChild
@@ -152,10 +153,10 @@ export default function ChromeExtensionBlocker() {
               content.includes("ChromeTransport") ||
               content.includes("connectChrome")
             ) {
-              return newChild // Block the script but don't throw error
+              return newChild as T
             }
           }
-          return originalAppendChild.call(this, newChild)
+          return originalAppendChild.call(this, newChild) as T
         }
 
         // Cleanup function

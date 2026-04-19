@@ -15,7 +15,7 @@ import {
   type WarfareScripture,
 } from "@/lib/prayer"
 import { prayerAreas } from "@/lib/data/dominion"
-import { mondayDateString } from "@/lib/prayer-week"
+import { localCalendarDateString, mondayDateString } from "@/lib/prayer-week"
 import type { IntercessionDayRow } from "@/components/app/settings/intercession-editor"
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
@@ -86,7 +86,7 @@ export function ToolkitTab({
     : savedPrayers.filter((p) => p.category === prayerFilter)
 
   const markPrayerUsed = async (prayer: SavedPrayer) => {
-    const today = new Date().toISOString().split("T")[0]
+    const today = localCalendarDateString()
     await supabase
       .from("saved_prayers")
       .update({

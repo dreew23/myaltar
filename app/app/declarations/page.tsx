@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { localCalendarDateString } from "@/lib/prayer-week"
 import { DeclarationsClient } from "./declarations-client"
 
 export const metadata = { title: "Declarations | ALTAR" }
@@ -8,7 +9,7 @@ export default async function DeclarationsPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  const today = new Date().toISOString().split("T")[0]
+  const today = localCalendarDateString()
 
   const [declRes, logsRes] = await Promise.all([
     supabase

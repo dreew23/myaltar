@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react"
 import { Plus, Minus, Check, Clock, Flame, ChevronRight, X } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { localCalendarDateString } from "@/lib/prayer-week"
 import { toast } from "sonner"
 import type { SubChallenge, SubChallengeLog } from "./types"
 
@@ -74,13 +75,13 @@ function ChallengeCard({ challenge, todayLog, allLogs, userId, onLogUpdate, onVi
     let count = 0
     const d = new Date()
     // Check today first
-    const todayStr = d.toISOString().split("T")[0]
+    const todayStr = localCalendarDateString(d)
     if (!completedDates.has(todayStr)) {
       // Check yesterday in case today isn't done yet
       d.setDate(d.getDate() - 1)
     }
     for (let i = 0; i < 365; i++) {
-      const dateStr = d.toISOString().split("T")[0]
+      const dateStr = localCalendarDateString(d)
       if (completedDates.has(dateStr)) {
         count++
         d.setDate(d.getDate() - 1)
@@ -93,7 +94,7 @@ function ChallengeCard({ challenge, todayLog, allLogs, userId, onLogUpdate, onVi
 
   const upsertLog = async (newValue: number, completed: boolean) => {
     setSaving(true)
-    const today = new Date().toISOString().split("T")[0]
+    const today = localCalendarDateString()
     const supabase = createClient()
 
     const logData = {

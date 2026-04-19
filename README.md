@@ -28,3 +28,15 @@ Continue building your app on:
 2. Deploy your chats from the v0 interface
 3. Changes are automatically pushed to this repository
 4. Vercel deploys the latest version from this repository
+
+## Local development
+
+- Install dependencies: `npm install`
+- Copy env: set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (see [docs/OPERATIONS.md](docs/OPERATIONS.md))
+- Dev server: `npm run dev`
+- Lint: `npm run lint` · Typecheck: `npx tsc --noEmit` · Tests: `npm run test` · Production build: `npm run build`
+
+## Docs
+
+- [Operations, env vars, migrations, CI](docs/OPERATIONS.md)
+- [PWA / service worker troubleshooting](docs/PWA.md)

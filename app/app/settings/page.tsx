@@ -1,7 +1,17 @@
 import { createClient } from "@/lib/supabase/server"
+import { localCalendarDateString } from "@/lib/prayer-week"
 import { redirect } from "next/navigation"
 import type { PersonalYearConfigRow } from "@/lib/personal-year"
-import SettingsClient from "./settings-client"
+import SettingsClient, { type SettingsProfile } from "./settings-client"
+import type { NotificationPrefs } from "@/components/app/settings/notifications-section"
+
+function countFromHead(r: unknown): { count: number } {
+  const c =
+    r && typeof r === "object" && "count" in r
+      ? (r as { count?: number | null }).count
+      : undefined
+  return { count: typeof c === "number" ? c : 0 }
+}
 import { getQuarterProgress } from "@/lib/data/dominion"
 
 export const metadata = {
@@ -60,19 +70,19 @@ export default async function SettingsPage() {
     quartersRes = results[1] as { data: unknown[] }
     intercessionRes = results[2] as { data: unknown[] }
     goalsRes = results[3] as { data: unknown[] }
-    devotionsCount = (results[4] as { count?: number }) ?? defaultCount
-    declarationsCount = (results[5] as { count?: number }) ?? defaultCount
-    declLogsCount = (results[6] as { count?: number }) ?? defaultCount
-    downloadsCount = (results[7] as { count?: number }) ?? defaultCount
-    sermonsCount = (results[8] as { count?: number }) ?? defaultCount
-    prayerSessionsCount = (results[9] as { count?: number }) ?? defaultCount
-    prayerRequestsCount = (results[10] as { count?: number }) ?? defaultCount
-    prayersCount = (results[11] as { count?: number }) ?? defaultCount
-    wisdomCount = (results[12] as { count?: number }) ?? defaultCount
-    pulseChecksCount = (results[13] as { count?: number }) ?? defaultCount
-    pulseSessionsCount = (results[14] as { count?: number }) ?? defaultCount
-    goalNotesCount = (results[15] as { count?: number }) ?? defaultCount
-    weeklyGoalsCount = (results[16] as { count?: number }) ?? defaultCount
+    devotionsCount = countFromHead(results[4])
+    declarationsCount = countFromHead(results[5])
+    declLogsCount = countFromHead(results[6])
+    downloadsCount = countFromHead(results[7])
+    sermonsCount = countFromHead(results[8])
+    prayerSessionsCount = countFromHead(results[9])
+    prayerRequestsCount = countFromHead(results[10])
+    prayersCount = countFromHead(results[11])
+    wisdomCount = countFromHead(results[12])
+    pulseChecksCount = countFromHead(results[13])
+    pulseSessionsCount = countFromHead(results[14])
+    goalNotesCount = countFromHead(results[15])
+    weeklyGoalsCount = countFromHead(results[16])
     personalYearsRes = { data: ((results[17] as { data: PersonalYearConfigRow[] | null }).data ?? []) }
   } catch {
     // Tables may not exist yet (migrations not run). Use defaults above.
@@ -82,8 +92,8 @@ export default async function SettingsPage() {
   const now = new Date()
   const quarterStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1)
   const quarterEnd = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3 + 3, 0)
-  const quarterStartStr = quarterStart.toISOString().split("T")[0]
-  const quarterEndStr = quarterEnd.toISOString().split("T")[0]
+  const quarterStartStr = localCalendarDateString(quarterStart)
+  const quarterEndStr = localCalendarDateString(quarterEnd)
   const quarterCode = `${now.getFullYear()}-Q${Math.floor(now.getMonth() / 3) + 1}`
 
   const storageCounts: Record<string, number> = {
@@ -129,12 +139,13 @@ export default async function SettingsPage() {
     display_order: g.display_order,
   })) : null
 
-  const notificationPrefs = (profile as { notification_preferences?: unknown } | null)?.notification_preferences as Record<string, { enabled: boolean; time: string }> | null
+  const notificationPrefs = (profile as { notification_preferences?: unknown } | null)
+    ?.notification_preferences as NotificationPrefs | null
 
   return (
     <SettingsClient
       user={user}
-      profile={profile}
+      profile={profile as SettingsProfile | null}
       personalYears={(personalYearsRes.data ?? []) as PersonalYearConfigRow[]}
       quarters={quarters}
       intercessionSchedule={intercessionRows}

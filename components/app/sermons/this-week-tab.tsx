@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress"
 import { WeeklyPrinciple } from "./weekly-principle"
 import { WeeklySermonCard, type WeeklySermonRow } from "./weekly-sermon-card"
 import { AddSermonsModal, type SermonForPicker } from "./add-sermons-modal"
+import { localCalendarDateString } from "@/lib/prayer-week"
 
 function getWeekRange(weekStartDate: string): string {
   const start = new Date(weekStartDate + "T12:00:00")
@@ -59,13 +60,13 @@ export function ThisWeekTab({
   const goPrevWeek = () => {
     const d = new Date(weekStartStr + "T12:00:00")
     d.setDate(d.getDate() - 7)
-    onWeekChange(d.toISOString().split("T")[0])
+    onWeekChange(localCalendarDateString(d))
   }
 
   const goNextWeek = () => {
     const d = new Date(weekStartStr + "T12:00:00")
     d.setDate(d.getDate() + 7)
-    onWeekChange(d.toISOString().split("T")[0])
+    onWeekChange(localCalendarDateString(d))
   }
 
   const handleAdd = async (sermonIds: string[]) => {

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { prayerAreas } from "@/lib/data/dominion"
+import { localCalendarDateString } from "@/lib/prayer-week"
 import type { PrayerSession } from "@/lib/prayer"
 
 const ATMOSPHERE_EMOJI: Record<string, string> = {
@@ -36,11 +37,11 @@ export function PrayerJournalTab({ sessions }: Props) {
       const done = new Set(completed.map((s) => s.date))
       const d = new Date()
       d.setHours(0, 0, 0, 0)
-      const tk = d.toISOString().split("T")[0]!
+      const tk = localCalendarDateString(d)
       if (!done.has(tk)) d.setDate(d.getDate() - 1)
       let n = 0
       for (;;) {
-        const k = d.toISOString().split("T")[0]!
+        const k = localCalendarDateString(d)
         if (done.has(k)) {
           n++
           d.setDate(d.getDate() - 1)
@@ -117,7 +118,7 @@ export function PrayerJournalTab({ sessions }: Props) {
     const startPad = (first.getDay() + 6) % 7
     const daysInMonth = new Date(y, m + 1, 0).getDate()
     const cells: { day: number | null; sessions: PrayerSession[]; isToday: boolean }[] = []
-    const today = new Date().toISOString().split("T")[0]!
+    const today = localCalendarDateString()
     for (let i = 0; i < startPad; i++) cells.push({ day: null, sessions: [], isToday: false })
     for (let d = 1; d <= daysInMonth; d++) {
       const ds = `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`

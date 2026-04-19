@@ -1,10 +1,18 @@
 import { redirect } from "next/navigation"
+import type { PostgrestError } from "@supabase/supabase-js"
 import { createClient } from "@/lib/supabase/server"
 import { getTodayIntercessionForUser } from "@/lib/data/user-config"
-import { mondayDateString } from "@/lib/prayer-week"
+import { localCalendarDateString, mondayDateString } from "@/lib/prayer-week"
 import { PrayerClient } from "./prayer-client"
 import type { IntercessionDayRow } from "@/components/app/settings/intercession-editor"
-import type { PrayerChallengeRow } from "@/lib/prayer"
+import type {
+  PrayerChallengeRow,
+  PrayerSession,
+  SavedPrayer,
+  WarfareScripture,
+  PrayerRequest,
+} from "@/lib/prayer"
+import type { Declaration, DeclarationLog } from "@/components/app/declarations/types"
 
 export const metadata = { title: "Prayer | ALTAR" }
 
@@ -17,15 +25,15 @@ export default async function PrayerPage() {
 
   // Recent declaration logs (client filters to local "today"; avoids UTC vs local mismatch).
   const since = new Date()
-  since.setUTCDate(since.getUTCDate() - 60)
-  const declarationLogsSince = since.toISOString().split("T")[0]
+  since.setDate(since.getDate() - 60)
+  const declarationLogsSince = localCalendarDateString(since)
 
-  let sessionsRes = { data: [] as unknown[], error: null }
-  let savedPrayersRes = { data: [] as unknown[] }
-  let warfareRes = { data: [] as unknown[] }
-  let requestsRes = { data: [] as unknown[] }
-  let declarationsRes = { data: [] as unknown[] }
-  let declarationLogsRes = { data: [] as unknown[] }
+  let sessionsRes = { data: [] as PrayerSession[], error: null as PostgrestError | null }
+  let savedPrayersRes = { data: [] as SavedPrayer[] }
+  let warfareRes = { data: [] as WarfareScripture[] }
+  let requestsRes = { data: [] as PrayerRequest[] }
+  let declarationsRes = { data: [] as Declaration[] }
+  let declarationLogsRes = { data: [] as DeclarationLog[] }
   let intercessionScheduleRows: IntercessionDayRow[] | null = null
   let challengesList: PrayerChallengeRow[] = []
   let prayEventsList: { request_id: string; prayed_date: string }[] = []
@@ -66,12 +74,12 @@ export default async function PrayerPage() {
         .eq("user_id", user.id)
         .gte("date", declarationLogsSince),
     ])
-    sessionsRes = s
-    savedPrayersRes = sp
-    warfareRes = w
-    requestsRes = r
-    declarationsRes = d
-    declarationLogsRes = dl
+    sessionsRes = { data: (s.data ?? []) as PrayerSession[], error: s.error }
+    savedPrayersRes = { data: (sp.data ?? []) as SavedPrayer[] }
+    warfareRes = { data: (w.data ?? []) as WarfareScripture[] }
+    requestsRes = { data: (r.data ?? []) as PrayerRequest[] }
+    declarationsRes = { data: (d.data ?? []) as Declaration[] }
+    declarationLogsRes = { data: (dl.data ?? []) as DeclarationLog[] }
   } catch {
     // Core prayer tables missing
   }

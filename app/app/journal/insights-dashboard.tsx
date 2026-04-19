@@ -31,25 +31,32 @@ export function InsightsDashboard({ entries, decisions }: Props) {
   const quarter = getQuarterProgress()
 
   const entriesByMonth = useMemo(() => {
-    const byMonth: Record<string, Record<string, number>> = {}
+    type MonthRow = { month: string; total: number; byLabel: Record<string, number> }
+    const byMonth: Record<string, MonthRow> = {}
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
     const now = new Date()
     for (let i = 11; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
       const key = `${months[d.getMonth()]} ${d.getFullYear()}`
-      byMonth[key] = { month: key, total: 0 }
-      WISDOM_ENTRY_TYPES.forEach((t) => { byMonth[key][t.label] = 0 })
+      const labels: Record<string, number> = {}
+      WISDOM_ENTRY_TYPES.forEach((t) => {
+        labels[t.label] = 0
+      })
+      byMonth[key] = { month: key, total: 0, byLabel: labels }
     }
     entries.forEach((e) => {
       const d = new Date(e.date)
       const key = `${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getMonth()]} ${d.getFullYear()}`
-      if (byMonth[key]) {
-        byMonth[key].total += 1
+      const row = byMonth[key]
+      if (row) {
+        row.total += 1
         const label = WISDOM_ENTRY_TYPES.find((t) => t.value === e.entry_type)?.label ?? "Other"
-        byMonth[key][label] = (byMonth[key][label] ?? 0) + 1
+        row.byLabel[label] = (row.byLabel[label] ?? 0) + 1
       }
     })
-    return Object.values(byMonth).slice(-12)
+    return Object.values(byMonth)
+      .slice(-12)
+      .map(({ month, total, byLabel }) => ({ month, total, ...byLabel }))
   }, [entries])
 
   const typeDistribution = useMemo(() => {

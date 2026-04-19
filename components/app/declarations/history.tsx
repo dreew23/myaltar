@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react"
 import { Flame, Trophy, Hash, ChevronDown, ChevronRight } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { localCalendarDateString } from "@/lib/prayer-week"
 import type { Declaration, DeclarationLog } from "./types"
 
 interface Props {
@@ -73,7 +74,7 @@ export function History({ declarations, userId }: Props) {
     let currentStreak = 0
     let longestStreak = 0
     let streak = 0
-    const today = new Date().toISOString().split("T")[0]
+    const today = localCalendarDateString()
 
     for (let i = 0; i < sortedDates.length; i++) {
       const date = sortedDates[i]

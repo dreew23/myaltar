@@ -5,6 +5,8 @@ import { Zap, MessageCircle, Star, Flame, Heart, BookOpen, Scale, Search, Briefc
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { createClient } from "@/lib/supabase/client"
+import { ensureOnlineFor } from "@/lib/online-guard"
+import { localCalendarDateString } from "@/lib/prayer-week"
 import {
   type WisdomEntryType,
   WISDOM_ENTRY_TYPES,
@@ -79,9 +81,10 @@ export function LogWisdomModal({
 
   const handleSave = async () => {
     if (!form.title.trim() || !form.content.trim()) return
+    if (!ensureOnlineFor("save this wisdom entry")) return
     setSaving(true)
     const supabase = createClient()
-    const today = new Date().toISOString().split("T")[0]
+    const today = localCalendarDateString()
     const { data, error } = await supabase
       .from("wisdom_entries")
       .insert({

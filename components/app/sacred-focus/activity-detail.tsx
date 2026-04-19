@@ -8,6 +8,7 @@ import { SubChallenges } from "./sub-challenges"
 import { BooksResources } from "./books-resources"
 import { FruitRecording } from "./fruit-recording"
 import { getActivityDayProgress, getRecurrenceLabel, ACTIVITY_TYPES } from "./types"
+import { localCalendarDateString } from "@/lib/prayer-week"
 import type {
   SpiritualActivity, JournalEntry, SubChallenge, SubChallengeLog, ActivityFruit
 } from "./types"
@@ -38,7 +39,7 @@ export function ActivityDetail({
   const typeLabel = ACTIVITY_TYPES.find((t) => t.key === activity.type)?.label ?? activity.type
 
   // Today's sub-challenge logs lookup
-  const today = new Date().toISOString().split("T")[0]
+  const today = localCalendarDateString()
   const todaySubLogs = useMemo(() => {
     const map: Record<string, SubChallengeLog> = {}
     challengeLogs.filter((l) => l.date === today).forEach((l) => { map[l.sub_challenge_id] = l })
