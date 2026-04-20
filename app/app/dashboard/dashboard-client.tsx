@@ -29,6 +29,8 @@ import {
   dailyFocusUpsertPayload,
   normalizeDailyFocusRow,
 } from "@/lib/daily-focus-checklist"
+import type { WeeklyCommitment, WeeklyCommitmentLog } from "@/lib/weekly-commitments"
+import { WeeklyCommitmentsCard } from "@/components/app/dashboard/weekly-commitments-card"
 
 interface WeeklyGoalsRow {
   id: string
@@ -81,6 +83,9 @@ interface Props {
   todayDateStr: string
   todayIntercession: { theme: string; focus: string[] }
   personalYears: PersonalYearConfigRow[]
+  weeklyCommitments: WeeklyCommitment[]
+  weeklyCommitmentLogs: WeeklyCommitmentLog[]
+  declarationsForPicker: { id: string; text: string }[]
 }
 
 const GOAL_CODES = ["G1", "G2", "G3", "G4", "G5", "G6", "G7"] as const
@@ -95,6 +100,9 @@ export function DashboardClient({
   todayDateStr,
   todayIntercession,
   personalYears,
+  weeklyCommitments,
+  weeklyCommitmentLogs,
+  declarationsForPicker,
 }: Props) {
   const router = useRouter()
   const verse = getTodayVerse()
@@ -400,6 +408,16 @@ export function DashboardClient({
           <p className="text-[10px] text-[#3C1E38]/35">weekly alignment</p>
         </Link>
       </div>
+
+      {/* This Week's Commitments — user-defined daily targets for the current week */}
+      <WeeklyCommitmentsCard
+        userId={userId}
+        weekStartStr={weekStartStr}
+        todayDateStr={todayDateStr}
+        initialCommitments={weeklyCommitments}
+        initialLogs={weeklyCommitmentLogs}
+        declarations={declarationsForPicker}
+      />
 
       {/* Mon–Sat: Pulse + Prayer (Sunday uses the gold card below) */}
       {!sunday && (
@@ -987,3 +1005,4 @@ export function DashboardClient({
     </div>
   )
 }
+

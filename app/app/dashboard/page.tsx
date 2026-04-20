@@ -4,6 +4,7 @@ import { localCalendarDateString } from "@/lib/prayer-week"
 import { createClient } from "@/lib/supabase/server"
 import { getTodayIntercessionForUser } from "@/lib/data/user-config"
 import type { PersonalYearConfigRow } from "@/lib/personal-year"
+import type { WeeklyCommitment, WeeklyCommitmentLog } from "@/lib/weekly-commitments"
 import { DashboardClient } from "./dashboard-client"
 
 export const metadata = { title: "DOMINION | ALTAR" }
@@ -284,6 +285,56 @@ export default async function DashboardPage() {
     }
   }
 
+  // Weekly commitments: user-defined targets for the current week + their daily logs.
+  let weeklyCommitments: WeeklyCommitment[] = []
+  let weeklyCommitmentLogs: WeeklyCommitmentLog[] = []
+  let activeDeclarationsForPicker: { id: string; text: string }[] = []
+
+  await Promise.all([
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from("weekly_commitments")
+          .select("*")
+          .eq("user_id", user.id)
+          .eq("week_start_date", startOfWeekStr)
+          .order("display_order", { ascending: true })
+          .order("created_at", { ascending: true })
+        weeklyCommitments = (data ?? []) as WeeklyCommitment[]
+      } catch {
+        // weekly_commitments may not exist yet; empty list keeps card functional
+      }
+    })(),
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from("weekly_commitment_logs")
+          .select("*")
+          .eq("user_id", user.id)
+          .gte("date", startOfWeekStr)
+          .lte("date", todayStr)
+        weeklyCommitmentLogs = (data ?? []) as WeeklyCommitmentLog[]
+      } catch {
+        // weekly_commitment_logs may not exist yet
+      }
+    })(),
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from("declarations")
+          .select("id, content")
+          .eq("user_id", user.id)
+          .eq("active", true)
+          .order("display_order", { ascending: true })
+        activeDeclarationsForPicker = (
+          (data ?? []) as { id: string; content: string | null }[]
+        ).map((d) => ({ id: d.id, text: d.content ?? "" }))
+      } catch {
+        // declarations may not exist
+      }
+    })(),
+  ])
+
   const safeIntercession = {
     theme: todayIntercession?.theme ?? "Today",
     focus: Array.isArray(todayIntercession?.focus) ? todayIntercession.focus : [],
@@ -316,6 +367,9 @@ export default async function DashboardPage() {
       todayDateStr={todayStr}
       todayIntercession={safeIntercession}
       personalYears={(personalYearsRes.data ?? []) as PersonalYearConfigRow[]}
+      weeklyCommitments={weeklyCommitments}
+      weeklyCommitmentLogs={weeklyCommitmentLogs}
+      declarationsForPicker={activeDeclarationsForPicker}
     />
   )
 }
