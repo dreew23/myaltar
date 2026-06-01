@@ -134,7 +134,7 @@ export default function SettingsClient({
   const handleSignOut = async () => {
     setSigningOut(true)
     await supabase.auth.signOut()
-    router.push("/")
+    window.location.assign("/")
   }
 
   return (

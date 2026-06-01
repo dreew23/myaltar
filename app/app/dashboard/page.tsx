@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server"
 import { getTodayIntercessionForUser } from "@/lib/data/user-config"
 import type { PersonalYearConfigRow } from "@/lib/personal-year"
 import type { WeeklyCommitment, WeeklyCommitmentLog } from "@/lib/weekly-commitments"
+import type { IntercessionDayRow } from "@/components/app/settings/intercession-editor"
 import { DashboardClient } from "./dashboard-client"
 
 export const metadata = { title: "DOMINION | ALTAR" }
@@ -289,6 +290,7 @@ export default async function DashboardPage() {
   let weeklyCommitments: WeeklyCommitment[] = []
   let weeklyCommitmentLogs: WeeklyCommitmentLog[] = []
   let activeDeclarationsForPicker: { id: string; text: string }[] = []
+  let intercessionScheduleRows: IntercessionDayRow[] | null = null
 
   await Promise.all([
     (async () => {
@@ -333,6 +335,19 @@ export default async function DashboardPage() {
         // declarations may not exist
       }
     })(),
+    (async () => {
+      try {
+        const { data: sched } = await supabase
+          .from("intercession_schedule")
+          .select("day_of_week, theme, people, life_areas")
+          .eq("user_id", user.id)
+          .order("day_of_week")
+        const rows = sched as IntercessionDayRow[] | null
+        intercessionScheduleRows = rows && rows.length === 7 ? rows : null
+      } catch {
+        // intercession_schedule may not exist
+      }
+    })(),
   ])
 
   const safeIntercession = {
@@ -370,6 +385,7 @@ export default async function DashboardPage() {
       weeklyCommitments={weeklyCommitments}
       weeklyCommitmentLogs={weeklyCommitmentLogs}
       declarationsForPicker={activeDeclarationsForPicker}
+      intercessionSchedule={intercessionScheduleRows}
     />
   )
 }

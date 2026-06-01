@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { SacredFocusClient } from "./sacred-focus-client"
 
@@ -6,7 +7,7 @@ export const metadata = { title: "Sacred Focus | ALTAR" }
 export default async function SacredFocusPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
+  if (!user) redirect("/login")
 
   // Fetch all data in parallel
   const [activitiesRes, entriesRes, subChallengesRes, logsRes, fruitsRes] = await Promise.all([

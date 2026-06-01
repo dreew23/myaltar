@@ -1,5 +1,23 @@
 import { describe, expect, it } from "vitest"
-import { getAuthRedirectPath } from "./auth-redirect"
+import { getAuthRedirectPath, sanitizeRedirectPath } from "./auth-redirect"
+
+describe("sanitizeRedirectPath", () => {
+  it("allows safe relative paths", () => {
+    expect(sanitizeRedirectPath("/app/dashboard")).toBe("/app/dashboard")
+    expect(sanitizeRedirectPath("/app/settings")).toBe("/app/settings")
+  })
+
+  it("rejects open redirects", () => {
+    expect(sanitizeRedirectPath("https://evil.com")).toBe("/app/dashboard")
+    expect(sanitizeRedirectPath("//evil.com")).toBe("/app/dashboard")
+    expect(sanitizeRedirectPath("javascript:alert(1)")).toBe("/app/dashboard")
+  })
+
+  it("defaults null/empty to dashboard", () => {
+    expect(sanitizeRedirectPath(null)).toBe("/app/dashboard")
+    expect(sanitizeRedirectPath("")).toBe("/app/dashboard")
+  })
+})
 
 describe("getAuthRedirectPath", () => {
   it("sends unauthenticated users to login for /app routes", () => {

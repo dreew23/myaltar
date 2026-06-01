@@ -39,8 +39,7 @@ export default function UpdatePasswordPage() {
       return
     }
     toast.success("Password updated")
-    router.push("/app/settings")
-    router.refresh()
+    window.location.assign("/app/settings")
   }
 
   return (

@@ -27,6 +27,8 @@ export async function recordSundayPulseClosingPrayer(
     .eq("user_id", opts.userId)
     .eq("date", opts.sessionDate)
     .eq("session_type", "spontaneous")
+    .order("start_time", { ascending: false })
+    .limit(1)
     .maybeSingle()
 
   if (selErr) return { error: { message: selErr.message } }

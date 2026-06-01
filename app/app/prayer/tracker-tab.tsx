@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { createClient } from "@/lib/supabase/client"
 import { ensureOnlineFor } from "@/lib/online-guard"
+import { toast } from "sonner"
 import { localCalendarDateString } from "@/lib/prayer-week"
 import {
   REQUEST_CATEGORIES,
@@ -24,6 +25,7 @@ interface Props {
   prayEvents: PrayEvent[]
   userId: string
   onRequestsUpdate: (r: PrayerRequest[]) => void
+  onPrayEventAdded?: (event: PrayEvent) => void
 }
 
 const CATEGORY_FILTER = [
@@ -54,7 +56,7 @@ function heatmap8(requestId: string, events: PrayEvent[]): number[] {
   return out
 }
 
-export function TrackerTab({ prayerRequests, prayEvents, userId, onRequestsUpdate }: Props) {
+export function TrackerTab({ prayerRequests, prayEvents, userId, onRequestsUpdate, onPrayEventAdded }: Props) {
   const router = useRouter()
   const [filter, setFilter] = useState<"active" | "answered" | "all">("active")
   const [catFilter, setCatFilter] = useState<string>("all")
@@ -99,7 +101,7 @@ export function TrackerTab({ prayerRequests, prayEvents, userId, onRequestsUpdat
   const handleAdd = async () => {
     if (!form.request.trim()) return
     if (!ensureOnlineFor("save this prayer request")) return
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("prayer_requests")
       .insert({
         user_id: userId,
@@ -111,6 +113,10 @@ export function TrackerTab({ prayerRequests, prayEvents, userId, onRequestsUpdat
       })
       .select()
       .single()
+    if (error) {
+      toast.error(error.message)
+      return
+    }
     if (data) {
       onRequestsUpdate([data as PrayerRequest, ...prayerRequests])
       setAddOpen(false)
@@ -121,17 +127,42 @@ export function TrackerTab({ prayerRequests, prayEvents, userId, onRequestsUpdat
   const prayedToday = async (r: PrayerRequest) => {
     if (!ensureOnlineFor("record prayer progress")) return
     const today = localCalendarDateString()
-    await supabase.from("prayer_request_pray_events").upsert(
-      { user_id: userId, request_id: r.id, prayed_date: today },
-      { onConflict: "request_id,prayed_date" }
-    )
+
+    const { data: existingEvent } = await supabase
+      .from("prayer_request_pray_events")
+      .select("request_id")
+      .eq("request_id", r.id)
+      .eq("prayed_date", today)
+      .eq("user_id", userId)
+      .maybeSingle()
+
+    if (!existingEvent) {
+      const { error: eventError } = await supabase.from("prayer_request_pray_events").insert({
+        user_id: userId,
+        request_id: r.id,
+        prayed_date: today,
+      })
+      if (eventError) {
+        toast.error(eventError.message)
+        return
+      }
+      onPrayEventAdded?.({ request_id: r.id, prayed_date: today })
+    }
+
+    if (existingEvent) return
+
     const next = (r.prayed_count ?? 0) + 1
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("prayer_requests")
       .update({ prayed_count: next, last_prayed_at: today })
       .eq("id", r.id)
+      .eq("user_id", userId)
       .select()
       .single()
+    if (error) {
+      toast.error(error.message)
+      return
+    }
     if (data) {
       onRequestsUpdate(prayerRequests.map((x) => (x.id === r.id ? (data as PrayerRequest) : x)))
       router.refresh()
@@ -148,12 +179,17 @@ export function TrackerTab({ prayerRequests, prayEvents, userId, onRequestsUpdat
       answer_type: answerForm.answer_type,
       is_testimony: answerForm.create_testimony,
     }
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("prayer_requests")
       .update(updates)
       .eq("id", editRequest.id)
+      .eq("user_id", userId)
       .select()
       .single()
+    if (error) {
+      toast.error(error.message)
+      return
+    }
     if (data) {
       onRequestsUpdate(prayerRequests.map((r) => (r.id === editRequest.id ? (data as PrayerRequest) : r)))
       if (answerForm.create_testimony && answerForm.status === "answered") {
@@ -171,7 +207,11 @@ export function TrackerTab({ prayerRequests, prayEvents, userId, onRequestsUpdat
 
   const deleteRequest = async (id: string) => {
     if (!ensureOnlineFor("delete this prayer request")) return
-    await supabase.from("prayer_requests").delete().eq("id", id)
+    const { error } = await supabase.from("prayer_requests").delete().eq("id", id).eq("user_id", userId)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
     onRequestsUpdate(prayerRequests.filter((r) => r.id !== id))
   }
 

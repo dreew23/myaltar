@@ -16,6 +16,7 @@ interface SessionBannerProps {
   /** 1–5 from Phase 6; shown when the session is complete. */
   sessionQuality?: number | null
   onBegin: () => void
+  beginningSession?: boolean
 }
 
 export function SessionBanner({
@@ -27,6 +28,7 @@ export function SessionBanner({
   sessionComplete,
   sessionQuality = null,
   onBegin,
+  beginningSession = false,
 }: SessionBannerProps) {
   const nextSunday = (() => {
     const d = new Date()
@@ -81,10 +83,11 @@ export function SessionBanner({
             ) : (
               <Button
                 onClick={onBegin}
+                disabled={beginningSession}
                 size="lg"
                 className="bg-[#3C1E38] hover:bg-[#3C1E38]/90 text-[#F9D57E] border-2 border-[#3C1E38] font-playfair"
               >
-                {hasSession ? "Resume Session" : "Begin Session"}
+                {beginningSession ? "Starting…" : hasSession ? "Resume Session" : "Begin Session"}
               </Button>
             )}
           </div>
@@ -113,8 +116,8 @@ export function SessionBanner({
             Open Prayer Mode
           </Link>
         </div>
-        <Button onClick={onBegin} variant="outline" className="border-[#A7C2D7]/40 text-[#3C1E38]">
-          Start session anyway
+        <Button onClick={onBegin} disabled={beginningSession} variant="outline" className="border-[#A7C2D7]/40 text-[#3C1E38]">
+          {beginningSession ? "Starting…" : "Start session anyway"}
         </Button>
       </div>
     </div>

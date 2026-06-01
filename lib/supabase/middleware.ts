@@ -19,6 +19,7 @@ export async function updateSession(request: NextRequest) {
   }
 
   let supabaseResponse = NextResponse.next({ request })
+  let pendingCookies: { name: string; value: string; options?: Record<string, unknown> }[] = []
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -29,6 +30,7 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
+          pendingCookies = cookiesToSet
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value),
           )
@@ -43,13 +45,23 @@ export async function updateSession(request: NextRequest) {
 
   const {
     data: { user },
+    error: authError,
   } = await supabase.auth.getUser()
+
+  // Transient Supabase failures should not false-logout authenticated users.
+  if (authError) {
+    return supabaseResponse
+  }
 
   const redirectPath = getAuthRedirectPath(request.nextUrl.pathname, !!user)
   if (redirectPath) {
     const url = request.nextUrl.clone()
     url.pathname = redirectPath
-    return NextResponse.redirect(url)
+    const redirect = NextResponse.redirect(url)
+    pendingCookies.forEach(({ name, value, options }) =>
+      redirect.cookies.set(name, value, options),
+    )
+    return redirect
   }
 
   return supabaseResponse

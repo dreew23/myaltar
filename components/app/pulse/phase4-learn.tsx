@@ -147,7 +147,10 @@ export function Phase4Learn({
             value={constraintDetails}
             onChange={(e) => {
               setConstraintDetails(e.target.value)
-              onConstraintChange((constraintChip ?? "") + (e.target.value ? ". " + e.target.value : ""))
+              const text = constraintChip
+                ? constraintChip + (e.target.value ? ". " + e.target.value : "")
+                : e.target.value
+              onConstraintChange(text)
             }}
             placeholder="Optional details..."
             className="w-full px-3 py-2 border border-[#A7C2D7]/20 rounded-lg text-sm"

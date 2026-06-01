@@ -1,3 +1,5 @@
+import { dayOfYearIndex } from "@/lib/pulse-session-dates"
+
 export const dailyVerses = [
   { ref: "Psalm 143:8", text: "Let the morning bring me word of your unfailing love, for I have put my trust in you." },
   { ref: "Proverbs 3:5-6", text: "Trust in the Lord with all your heart and lean not on your own understanding." },
@@ -31,16 +33,16 @@ export const gratitudePrompts = [
 ]
 
 export function getTodayVerse() {
-  const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000)
+  const dayOfYear = dayOfYearIndex()
   return dailyVerses[dayOfYear % dailyVerses.length]
 }
 
 export function getTodayPrayerPrompt() {
-  const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000)
+  const dayOfYear = dayOfYearIndex()
   return prayerPrompts[dayOfYear % prayerPrompts.length]
 }
 
 export function getTodayGratitudePrompt() {
-  const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000)
+  const dayOfYear = dayOfYearIndex()
   return gratitudePrompts[dayOfYear % gratitudePrompts.length]
 }

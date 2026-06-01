@@ -2,13 +2,14 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { GoalConfig } from "@/lib/data/dominion"
 import type { PulseSessionRow } from "@/lib/pulse"
 import type { PersonalYearConfigRow } from "@/lib/personal-year"
+import { getCalendarQuarterProgress } from "@/lib/personal-year"
 import {
   getSevenDayWindow,
   getNextWeekFocusDatesFromSessionDate,
-  getWeekNumberOfYear,
   getQuarterCodeForDate,
   getQuarterProgressForDate,
   toLocalISODate,
+  localDateToUtcBounds,
 } from "@/lib/pulse-session-dates"
 
 export type PulsePageData = {
@@ -47,13 +48,13 @@ export async function loadPulsePageData(
   goals: GoalConfig[],
 ): Promise<PulsePageData> {
   const sessionDate = new Date(sessionDateStr + "T12:00:00")
-  const weekNumber = getWeekNumberOfYear(sessionDate)
+  const weekNumber = getCalendarQuarterProgress(sessionDate).weekInQuarter
   const quarterCode = getQuarterCodeForDate(sessionDate)
   const quarter = getQuarterProgressForDate(sessionDate)
   const { startStr: sevenDaysAgoStr, endStr: windowEndStr } = getSevenDayWindow(sessionDateStr)
   const nextWeekFocusDates = getNextWeekFocusDatesFromSessionDate(sessionDateStr)
 
-  const minHistory = new Date()
+  const minHistory = new Date(sessionDateStr + "T12:00:00")
   minHistory.setDate(minHistory.getDate() - 13 * 7)
   const minHistoryStr = toLocalISODate(minHistory)
 
@@ -136,12 +137,14 @@ export async function loadPulsePageData(
   }
 
   async function fetchWeekDownloads() {
+    const startBounds = localDateToUtcBounds(sevenDaysAgoStr)
+    const endBounds = localDateToUtcBounds(windowEndStr)
     const { data } = await supabase
       .from("divine_downloads")
       .select("id, content, created_at")
       .eq("user_id", userId)
-      .gte("created_at", sevenDaysAgoStr + "T00:00:00")
-      .lte("created_at", windowEndStr + "T23:59:59")
+      .gte("created_at", startBounds.start)
+      .lte("created_at", endBounds.end)
       .order("created_at", { ascending: false })
     return data ?? []
   }

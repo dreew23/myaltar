@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -54,6 +54,26 @@ export function Phase5Plan({
     return m
   })
   const [calendarBlocks, setCalendarBlocks] = useState<Record<string, boolean>>({})
+
+  useEffect(() => {
+    setFocusByDate((prev) => {
+      const next = { ...prev }
+      for (const d of nextWeekFocusDates) {
+        const row = nextWeekDailyFocus.find((f) => f.date === d)
+        if (row) {
+          next[d] = {
+            focus_1: row.focus_1 ?? "",
+            focus_2: row.focus_2 ?? "",
+            focus_3: row.focus_3 ?? "",
+            goal_1: row.goal_1 ?? "",
+            goal_2: row.goal_2 ?? "",
+            goal_3: row.goal_3 ?? "",
+          }
+        }
+      }
+      return next
+    })
+  }, [nextWeekFocusDates, nextWeekDailyFocus])
 
   const priorities: string[] = [nextWeekPriorities[0] ?? "", nextWeekPriorities[1] ?? "", nextWeekPriorities[2] ?? ""]
 

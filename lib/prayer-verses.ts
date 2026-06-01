@@ -1,3 +1,5 @@
+import { dayOfYearIndex } from "@/lib/pulse-session-dates"
+
 /** Seven verses cycling by day-of-year (spec: Prayer Mode Settle). */
 export const ROTATING_SCRIPTURE_VERSES: { ref: string; text: string }[] = [
   { ref: "Psalm 46:10", text: "Be still, and know that I am God." },
@@ -10,10 +12,6 @@ export const ROTATING_SCRIPTURE_VERSES: { ref: string; text: string }[] = [
 ]
 
 export function getVerseForToday(): { ref: string; text: string } {
-  const start = new Date(new Date().getFullYear(), 0, 0)
-  const diff = Date.now() - start.getTime()
-  const oneDay = 86400000
-  const dayOfYear = Math.floor(diff / oneDay)
-  const i = dayOfYear % ROTATING_SCRIPTURE_VERSES.length
+  const i = dayOfYearIndex() % ROTATING_SCRIPTURE_VERSES.length
   return ROTATING_SCRIPTURE_VERSES[i]!
 }

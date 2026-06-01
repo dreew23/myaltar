@@ -1,4 +1,5 @@
 import type { PulseSessionRow } from "@/lib/pulse"
+import { getPlanningWeekSunday, toLocalISODate } from "@/lib/pulse-session-dates"
 
 /** Local calendar day difference (avoids UTC drift). */
 export function daysApartLocal(newerDateStr: string, olderDateStr: string): number {
@@ -7,10 +8,11 @@ export function daysApartLocal(newerDateStr: string, olderDateStr: string): numb
   return Math.round((a - b) / 86_400_000)
 }
 
-/** One planning week ≈ 7 days between session dates (Sun→Sun); allow 6–8 for DST edges. */
+/** Consecutive Sun–Sun planning weeks: newer week's Sunday is exactly 7 days after older week's Sunday. */
 function isConsecutivePlanningWeeks(newerDateStr: string, olderDateStr: string): boolean {
-  const d = daysApartLocal(newerDateStr, olderDateStr)
-  return d >= 6 && d <= 8
+  const newerSun = getPlanningWeekSunday(newerDateStr)
+  const olderSun = getPlanningWeekSunday(olderDateStr)
+  return daysApartLocal(newerSun, olderSun) === 7
 }
 
 /**
@@ -44,6 +46,12 @@ export function mergeCompletedPulseSessionsForStreak(
 export function currentConsecutiveWeekStreak(sortedNewestFirst: PulseSessionRow[]): number {
   const rows = sortedNewestFirst.filter((s) => s.completed_at && s.date)
   if (rows.length === 0) return 0
+
+  const todaySun = getPlanningWeekSunday(toLocalISODate(new Date()))
+  const newestSun = getPlanningWeekSunday(rows[0]!.date)
+  const gapFromToday = daysApartLocal(todaySun, newestSun)
+  if (gapFromToday > 7) return 0
+
   let streak = 1
   for (let i = 0; i < rows.length - 1; i++) {
     if (isConsecutivePlanningWeeks(rows[i]!.date, rows[i + 1]!.date)) streak++

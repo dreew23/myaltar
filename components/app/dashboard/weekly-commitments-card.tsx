@@ -4,15 +4,24 @@ import { useMemo, useRef, useState, useTransition } from "react"
 import {
   BookOpen,
   ChevronRight,
+  Church,
+  Ear,
+  FileText,
   Flame,
+  Heart,
   Minus,
+  Moon,
   MoreHorizontal,
   Music,
+  PenLine,
   Pencil,
   Plus,
   ScrollText,
   Sparkles,
+  Sun,
+  Timer,
   Trash2,
+  Users,
   X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -38,13 +47,32 @@ import {
   DAY_LABELS,
   daysForWeek,
   daysHitTarget,
+  intercessionThemesForPicker,
+  intercessionTitleForDay,
   logMapByCommitmentAndDate,
   type CommitmentType,
+  type IntercessionThemeOption,
   type WeeklyCommitment,
   type WeeklyCommitmentLog,
 } from "@/lib/weekly-commitments"
+import type { IntercessionDayRow } from "@/components/app/settings/intercession-editor"
 
-const ICONS = { Music, ScrollText, BookOpen, Flame, Sparkles } as const
+const ICONS = {
+  BookOpen,
+  Moon,
+  Church,
+  Users,
+  Timer,
+  ScrollText,
+  Music,
+  PenLine,
+  FileText,
+  Heart,
+  Sun,
+  Ear,
+  Flame,
+  Sparkles,
+} as const
 
 interface Props {
   userId: string
@@ -53,6 +81,7 @@ interface Props {
   initialCommitments: WeeklyCommitment[]
   initialLogs: WeeklyCommitmentLog[]
   declarations: { id: string; text: string }[]
+  intercessionSchedule: IntercessionDayRow[] | null
 }
 
 type AddFormState = {
@@ -61,14 +90,16 @@ type AddFormState = {
   daily_target: string
   unit: string
   declaration_id: string
+  intercession_day_of_week: string
 }
 
 const EMPTY_ADD_FORM: AddFormState = {
-  type: "worship_minutes",
-  title: COMMITMENT_TYPE_META.worship_minutes.suggestedTitle,
-  daily_target: String(COMMITMENT_TYPE_META.worship_minutes.defaultTarget),
-  unit: COMMITMENT_TYPE_META.worship_minutes.defaultUnit,
+  type: "bible_reading",
+  title: COMMITMENT_TYPE_META.bible_reading.suggestedTitle,
+  daily_target: String(COMMITMENT_TYPE_META.bible_reading.defaultTarget),
+  unit: COMMITMENT_TYPE_META.bible_reading.defaultUnit,
   declaration_id: "",
+  intercession_day_of_week: "",
 }
 
 export function WeeklyCommitmentsCard({
@@ -78,8 +109,13 @@ export function WeeklyCommitmentsCard({
   initialCommitments,
   initialLogs,
   declarations,
+  intercessionSchedule,
 }: Props) {
   const supabase = useMemo(() => createClient(), [])
+  const intercessionThemes = useMemo(
+    () => intercessionThemesForPicker(intercessionSchedule),
+    [intercessionSchedule]
+  )
   const [commitments, setCommitments] = useState<WeeklyCommitment[]>(initialCommitments)
   const [logs, setLogs] = useState<WeeklyCommitmentLog[]>(initialLogs)
   const [adding, setAdding] = useState(false)
@@ -99,6 +135,21 @@ export function WeeklyCommitmentsCard({
       daily_target: String(meta.defaultTarget),
       unit: meta.defaultUnit,
       declaration_id: type === "declaration_reps" ? f.declaration_id : "",
+      intercession_day_of_week: type === "intercession" ? f.intercession_day_of_week : "",
+    }))
+  }
+
+  const handleIntercessionDayChange = (dayStr: string) => {
+    if (dayStr === "none") {
+      setForm((f) => ({ ...f, intercession_day_of_week: "", title: "Intercession" }))
+      return
+    }
+    const day = parseInt(dayStr, 10)
+    if (!Number.isFinite(day)) return
+    setForm((f) => ({
+      ...f,
+      intercession_day_of_week: dayStr,
+      title: intercessionTitleForDay(day, intercessionSchedule),
     }))
   }
 
@@ -115,6 +166,10 @@ export function WeeklyCommitmentsCard({
       unit: form.unit.trim() || COMMITMENT_TYPE_META[form.type].defaultUnit,
       declaration_id:
         form.type === "declaration_reps" && form.declaration_id ? form.declaration_id : null,
+      intercession_day_of_week:
+        form.type === "intercession" && form.intercession_day_of_week !== ""
+          ? parseInt(form.intercession_day_of_week, 10)
+          : null,
       display_order: commitments.length,
     }
     const { data, error } = await supabase
@@ -178,6 +233,8 @@ export function WeeklyCommitmentsCard({
             setAdding(false)
           }}
           declarations={declarations}
+          intercessionThemes={intercessionThemes}
+          onIntercessionDayChange={handleIntercessionDayChange}
         />
       )}
 
@@ -187,7 +244,7 @@ export function WeeklyCommitmentsCard({
             Set 1-3 commitments to build this week.
           </p>
           <p className="text-xs text-[#3C1E38]/50 mt-1">
-            e.g. 10 min of worship daily, or declaration reps.
+            e.g. 1 chapter of Bible reading daily, or 15 min evening reflection.
           </p>
           <Button
             size="sm"
@@ -215,6 +272,7 @@ export function WeeklyCommitmentsCard({
               onUpdate={handleUpdateCommitment}
               onDelete={handleDelete}
               startTransition={startTransition}
+              intercessionThemes={intercessionThemes}
             />
           ))}
         </ul>
@@ -230,6 +288,8 @@ function AddCommitmentForm({
   onSubmit,
   onCancel,
   declarations,
+  intercessionThemes,
+  onIntercessionDayChange,
 }: {
   form: AddFormState
   setForm: React.Dispatch<React.SetStateAction<AddFormState>>
@@ -237,6 +297,8 @@ function AddCommitmentForm({
   onSubmit: (e: React.FormEvent) => void | Promise<void>
   onCancel: () => void
   declarations: { id: string; text: string }[]
+  intercessionThemes: IntercessionThemeOption[]
+  onIntercessionDayChange: (dayStr: string) => void
 }) {
   return (
     <form
@@ -314,6 +376,27 @@ function AddCommitmentForm({
             </Select>
           </div>
         )}
+        {form.type === "intercession" && (
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label className="text-xs text-[#3C1E38]/60">Focus day / theme (optional)</Label>
+            <Select
+              value={form.intercession_day_of_week || "none"}
+              onValueChange={onIntercessionDayChange}
+            >
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Select intercession theme" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No specific theme</SelectItem>
+                {intercessionThemes.map((t) => (
+                  <SelectItem key={t.dayOfWeek} value={String(t.dayOfWeek)}>
+                    {t.dayLabel} — {t.theme}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
       <div className="flex items-center justify-end gap-2">
         <Button
@@ -351,6 +434,7 @@ function CommitmentRow({
   onUpdate,
   onDelete,
   startTransition,
+  intercessionThemes,
 }: {
   commitment: WeeklyCommitment
   days: string[]
@@ -365,9 +449,14 @@ function CommitmentRow({
   onUpdate: (id: string, patch: Partial<WeeklyCommitment>) => void | Promise<void>
   onDelete: (id: string) => void | Promise<void>
   startTransition: React.TransitionStartFunction
+  intercessionThemes: IntercessionThemeOption[]
 }) {
   const meta = COMMITMENT_TYPE_META[commitment.type]
   const Icon = ICONS[meta.icon]
+  const intercessionTheme =
+    commitment.type === "intercession" && commitment.intercession_day_of_week != null
+      ? intercessionThemes.find((t) => t.dayOfWeek === commitment.intercession_day_of_week)?.theme
+      : null
   const step = meta.step
   const hit = daysHitTarget(commitment.id, commitment.daily_target, days, logMap)
   const pct = Math.round((hit / 7) * 100)
@@ -484,6 +573,17 @@ function CommitmentRow({
                         className="text-[#A7C2D7] hover:underline inline-flex items-center"
                       >
                         open declaration <ChevronRight className="w-3 h-3" />
+                      </a>
+                    </>
+                  )}
+                  {intercessionTheme && (
+                    <>
+                      {" · "}
+                      <a
+                        href="/app/prayer"
+                        className="text-[#A7C2D7] hover:underline inline-flex items-center"
+                      >
+                        {intercessionTheme} <ChevronRight className="w-3 h-3" />
                       </a>
                     </>
                   )}

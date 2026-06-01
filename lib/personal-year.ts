@@ -65,8 +65,8 @@ export function getPersonalYearProgress(
 
   const start = new Date(active.start_date + "T12:00:00")
   const end = new Date(active.end_date + "T12:00:00")
-  const totalDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / 86400000))
-  const rawElapsed = Math.ceil((today.getTime() - start.getTime()) / 86400000)
+  const totalDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1)
+  const rawElapsed = Math.ceil((today.getTime() - start.getTime()) / 86400000) + 1
   const daysElapsed = Math.min(totalDays, Math.max(0, rawElapsed))
   const weekNumber = Math.min(Math.floor(daysElapsed / 7) + 1, 13)
   const progress = Math.min(100, Math.round((daysElapsed / totalDays) * 100))
@@ -157,10 +157,13 @@ export function formatDualPulseContextLine(
   return `Personal: Year ${personal.yearNumber}, Week ${personal.weekNumber} | ${calPart}`
 }
 
-export function formatCalendarQuarterEndingLine(calendar: CalendarQuarterProgress): string {
+export function formatCalendarQuarterEndingLine(
+  calendar: CalendarQuarterProgress,
+  at: Date = new Date(),
+): string {
   const end = new Date(calendar.calendarYear, calendar.quarter * 3, 0)
   end.setHours(12, 0, 0, 0)
-  const today = noon(new Date())
+  const today = noon(at)
   const days = Math.max(0, Math.ceil((end.getTime() - today.getTime()) / 86400000))
   const nextQ = calendar.quarter === 4 ? 1 : calendar.quarter + 1
   const nextY = calendar.quarter === 4 ? calendar.calendarYear + 1 : calendar.calendarYear

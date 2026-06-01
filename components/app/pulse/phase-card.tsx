@@ -15,6 +15,7 @@ interface PhaseCardProps {
   onMarkComplete?: () => void
   onSkip?: () => void
   canSkip?: boolean
+  markCompleteDisabled?: boolean
 }
 
 export function PhaseCard({
@@ -28,6 +29,7 @@ export function PhaseCard({
   onMarkComplete,
   onSkip,
   canSkip = true,
+  markCompleteDisabled = false,
 }: PhaseCardProps) {
   const statusIcon = () => {
     if (status === "complete") return <CheckCircle2 className="w-5 h-5 text-emerald-500" />
@@ -68,9 +70,10 @@ export function PhaseCard({
                 <button
                   type="button"
                   onClick={onMarkComplete}
-                  className="px-4 py-2 rounded-lg bg-[#A7C2D7]/20 text-[#3C1E38] font-medium text-sm hover:bg-[#A7C2D7]/30 transition-colors"
+                  disabled={markCompleteDisabled}
+                  className="px-4 py-2 rounded-lg bg-[#A7C2D7]/20 text-[#3C1E38] font-medium text-sm hover:bg-[#A7C2D7]/30 transition-colors disabled:opacity-50"
                 >
-                  Mark Complete
+                  {markCompleteDisabled ? "Saving…" : "Mark Complete"}
                 </button>
               )}
               {onSkip && canSkip && status !== "skipped" && (

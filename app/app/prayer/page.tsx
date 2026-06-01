@@ -115,25 +115,31 @@ export default async function PrayerPage() {
 
   if (challengesList.length === 0) {
     try {
-      const mon = mondayDateString()
-      await supabase.from("prayer_challenges").insert([
-        {
-          user_id: user.id,
-          label: "Communion",
-          daily_target: 3,
-          unit: "times",
-          weekly_progress: 0,
-          week_start_monday: mon,
-        },
-        {
-          user_id: user.id,
-          label: "Tongues",
-          daily_target: 60,
-          unit: "min",
-          weekly_progress: 0,
-          week_start_monday: mon,
-        },
-      ])
+      const { count } = await supabase
+        .from("prayer_challenges")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+      if ((count ?? 0) === 0) {
+        const mon = mondayDateString()
+        await supabase.from("prayer_challenges").insert([
+          {
+            user_id: user.id,
+            label: "Communion",
+            daily_target: 3,
+            unit: "times",
+            weekly_progress: 0,
+            week_start_monday: mon,
+          },
+          {
+            user_id: user.id,
+            label: "Tongues",
+            daily_target: 60,
+            unit: "min",
+            weekly_progress: 0,
+            week_start_monday: mon,
+          },
+        ])
+      }
       const { data: ch2 } = await supabase.from("prayer_challenges").select("*").eq("user_id", user.id)
       challengesList = (ch2 ?? []) as PrayerChallengeRow[]
     } catch {

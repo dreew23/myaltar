@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { getTodayIntercessionForUser } from "@/lib/data/user-config"
 import { PrayersClient, type Prayer } from "./prayers-client"
@@ -5,7 +6,7 @@ import { PrayersClient, type Prayer } from "./prayers-client"
 export default async function PrayersPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
+  if (!user) redirect("/login")
 
   let prayers: Prayer[] = []
   try {

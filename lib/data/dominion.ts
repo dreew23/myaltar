@@ -1,6 +1,7 @@
 // DOMINION Spiritual Operating System - Core Data
 
 import { getLegacyQuarterProgressFromCalendar } from "@/lib/personal-year"
+import { dayOfYearIndex } from "@/lib/pulse-session-dates"
 
 export const dominionDeclarations = [
   "I am a son of God, chosen before the foundation of the world.",
@@ -168,7 +169,7 @@ export const pulseQuestions = GOALS.map((g) => ({
 
 // Helper functions
 export function getTodayDeclaration() {
-  const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000)
+  const dayOfYear = dayOfYearIndex()
   return dominionDeclarations[dayOfYear % dominionDeclarations.length]
 }
 
@@ -178,7 +179,7 @@ export function getTodayIntercession() {
 }
 
 export function getTodayPrayerAreas() {
-  const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000)
+  const dayOfYear = dayOfYearIndex()
   const cycleDay = dayOfYear % 5 // 5-day cycle
   const startIndex = cycleDay * 2
   return [prayerAreas[startIndex], prayerAreas[startIndex + 1]]
@@ -208,6 +209,6 @@ export const dailyVerses = [
 ]
 
 export function getTodayVerse() {
-  const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000)
+  const dayOfYear = dayOfYearIndex()
   return dailyVerses[dayOfYear % dailyVerses.length]
 }

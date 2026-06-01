@@ -3,6 +3,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import { SessionBanner } from "@/components/app/pulse/session-banner"
 import { PhaseCard, type PhaseStatus } from "@/components/app/pulse/phase-card"
@@ -155,12 +156,35 @@ export function PulseClient(props: PulseClientProps) {
     session?.started_at ? new Date(session.started_at).getTime() : null
   )
   const [completing, setCompleting] = useState(false)
+  const [phaseSaving, setPhaseSaving] = useState(false)
+  const [beginningSession, setBeginningSession] = useState(false)
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null)
   const [persistError, setPersistError] = useState<string | null>(null)
   const [completeActionError, setCompleteActionError] = useState<string | null>(null)
+  const [completeActionWarning, setCompleteActionWarning] = useState<string | null>(null)
   const skipPlanPersist = useRef(true)
   /** Only hydrate phase fields from server when switching sessions — refresh() was wiping in-progress edits. */
   const hydratedSessionIdRef = useRef<string | null>(null)
+  const dailyFocusPendingRef = useRef<
+    Map<string, { focus_1: string; focus_2: string; focus_3: string; goal_1?: string; goal_2?: string; goal_3?: string }>
+  >(new Map())
+  const dailyFocusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const dailyFocusSavingRef = useRef(false)
+
+  const resetPhaseLocalState = useCallback(() => {
+    setExpandedPhase(PHASE_IDS[0] ?? null)
+    setSkippedPhases(new Set())
+    setPhase4Time("")
+    setPhase4Constraint("")
+    setPhase4Declaration("")
+    setNextWeekFocus([])
+    setMondayTop3([])
+    setSessionQuality(null)
+    setPhase1Checklist({})
+    setPhase6ClosingChecklist({})
+    setSessionStartTime(null)
+    setPersistError(null)
+  }, [])
 
   useEffect(() => {
     skipPlanPersist.current = true
@@ -170,11 +194,13 @@ export function PulseClient(props: PulseClientProps) {
     if (!row || !sid) {
       hydratedSessionIdRef.current = null
       setSession(null)
+      resetPhaseLocalState()
       return
     }
 
     if (hydratedSessionIdRef.current !== sid) {
       hydratedSessionIdRef.current = sid
+      setSkippedPhases(new Set())
       setSession(sessionToState(row))
       setPhase4Time(row.phase4_time_analysis ?? "")
       setPhase4Constraint(row.phase4_constraint_changes ?? "")
@@ -207,7 +233,7 @@ export function PulseClient(props: PulseClientProps) {
         started_at: row.started_at ?? prev.started_at,
       }
     })
-  }, [props.todaySession])
+  }, [props.todaySession, resetPhaseLocalState])
 
   const upsertWeeklyGoalsForSession = useCallback(
     async (focus: string[], sessionDate: string) => {
@@ -217,30 +243,43 @@ export function PulseClient(props: PulseClientProps) {
       const daysUntilNextMonday = day === 0 ? 1 : day === 1 ? 7 : 8 - day
       dt.setDate(dt.getDate() + daysUntilNextMonday)
       const weekStartStr = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`
-      const { error } = await supabase.from("weekly_goals").upsert(
-        {
-          user_id: props.userId,
-          week_start_date: weekStartStr,
-          goal_1_text: focus[0]?.trim() || null,
-          goal_1_code: null,
-          goal_1_completed: false,
-          goal_2_text: focus[1]?.trim() || null,
-          goal_2_code: null,
-          goal_2_completed: false,
-          goal_3_text: focus[2]?.trim() || null,
-          goal_3_code: null,
-          goal_3_completed: false,
-        },
-        { onConflict: "user_id,week_start_date" }
-      )
+
+      const { data: existing } = await supabase
+        .from("weekly_goals")
+        .select("goal_1_completed, goal_2_completed, goal_3_completed")
+        .eq("user_id", props.userId)
+        .eq("week_start_date", weekStartStr)
+        .maybeSingle()
+
+      const payload: Record<string, unknown> = {
+        user_id: props.userId,
+        week_start_date: weekStartStr,
+        goal_1_text: focus[0]?.trim() || null,
+        goal_1_code: null,
+        goal_2_text: focus[1]?.trim() || null,
+        goal_2_code: null,
+        goal_3_text: focus[2]?.trim() || null,
+        goal_3_code: null,
+      }
+
+      if (!existing) {
+        payload.goal_1_completed = false
+        payload.goal_2_completed = false
+        payload.goal_3_completed = false
+      }
+
+      const { error } = await supabase.from("weekly_goals").upsert(payload, {
+        onConflict: "user_id,week_start_date",
+      })
       return error
     },
     [props.userId, supabase]
   )
 
   const updateSession = useCallback(
-    async (updates: Partial<SessionState>) => {
-      if (!session) return
+    async (updates: Partial<SessionState>): Promise<boolean> => {
+      if (!session) return false
+      const previous = session
       setSession((p) => (p ? { ...p, ...updates } : null))
       const { data, error } = await supabase
         .from("pulse_sessions")
@@ -249,22 +288,24 @@ export function PulseClient(props: PulseClientProps) {
         .select("id")
         .single()
       if (error || !data) {
+        setSession(previous)
         const msg = error?.message ?? "No row updated (check login / session)"
         console.error("[Pulse] update error:", msg)
         setPersistError(msg)
-        return
+        return false
       }
       setPersistError(null)
       setLastSavedAt(Date.now())
       router.refresh()
+      return true
     },
     [session, supabase, router]
   )
 
   /** Persist without router.refresh — avoids RSC churn resetting in-progress UI. */
   const persistSessionQuiet = useCallback(
-    async (patch: Record<string, unknown>) => {
-      if (!session) return
+    async (patch: Record<string, unknown>): Promise<boolean> => {
+      if (!session) return false
       const { data, error } = await supabase
         .from("pulse_sessions")
         .update(patch)
@@ -278,10 +319,11 @@ export function PulseClient(props: PulseClientProps) {
           : raw
         console.warn("[Pulse] quiet persist:", raw)
         setPersistError(msg)
-      } else {
-        setPersistError(null)
-        setLastSavedAt(Date.now())
+        return false
       }
+      setPersistError(null)
+      setLastSavedAt(Date.now())
+      return true
     },
     [session, supabase]
   )
@@ -323,7 +365,16 @@ export function PulseClient(props: PulseClientProps) {
     return () => clearTimeout(t)
   }, [nextWeekFocus, mondayTop3, mode, session?.id, session?.completed_at, persistSessionQuiet])
 
+  useEffect(() => {
+    if (mode !== "edit" || !session?.completed_at) return
+    const t = setTimeout(() => {
+      void persistSessionQuiet({ phase6_monday_top3: mondayTop3 })
+    }, 600)
+    return () => clearTimeout(t)
+  }, [mondayTop3, mode, session?.completed_at, session?.id, persistSessionQuiet])
+
   const beginSession = useCallback(async () => {
+    if (beginningSession) return
     if (session) {
       setSessionStartTime(session.started_at ? new Date(session.started_at).getTime() : Date.now())
       setExpandedPhase(
@@ -331,6 +382,7 @@ export function PulseClient(props: PulseClientProps) {
       )
       return
     }
+    setBeginningSession(true)
     const now = new Date().toISOString()
     const { data, error } = await supabase
       .from("pulse_sessions")
@@ -344,8 +396,31 @@ export function PulseClient(props: PulseClientProps) {
       })
       .select()
       .single()
+
     if (error) {
+      if (error.code === "23505") {
+        const { data: existing } = await supabase
+          .from("pulse_sessions")
+          .select("*")
+          .eq("user_id", props.userId)
+          .eq("date", props.sessionDateStr)
+          .maybeSingle()
+        if (existing) {
+          const hydrated = sessionToState(existing as PulseSessionRow)
+          if (hydrated) {
+            setSession(hydrated)
+            setSessionStartTime(hydrated.started_at ? new Date(hydrated.started_at).getTime() : Date.now())
+            setExpandedPhase("setup")
+            setLastSavedAt(Date.now())
+            router.refresh()
+          }
+          setBeginningSession(false)
+          return
+        }
+      }
       console.error("[Pulse] create error:", error.message)
+      toast.error("Could not start session. Please refresh and try again.")
+      setBeginningSession(false)
       return
     }
     const newSession = sessionToState(data as PulseSessionRow)
@@ -355,8 +430,19 @@ export function PulseClient(props: PulseClientProps) {
       setExpandedPhase("setup")
       setLastSavedAt(Date.now())
     }
+    setBeginningSession(false)
     router.refresh()
-  }, [session, props.userId, props.sessionDateStr, props.quarterCode, props.weekNumber, skippedPhases, supabase, router])
+  }, [
+    session,
+    props.userId,
+    props.sessionDateStr,
+    props.quarterCode,
+    props.weekNumber,
+    skippedPhases,
+    supabase,
+    router,
+    beginningSession,
+  ])
 
   const getPhaseStatus = (phaseId: PhaseId): PhaseStatus => {
     if (skippedPhases.has(phaseId)) return "skipped"
@@ -367,32 +453,46 @@ export function PulseClient(props: PulseClientProps) {
 
   const markPhaseComplete = useCallback(
     async (phaseId: PhaseId) => {
-      if (!session) return
-      const next = [...(session.phases_completed ?? []), phaseId]
+      if (!session || phaseSaving) return
+      if (phaseId === "review" && !session.phase3_pulse_check_id && !props.thisWeekPulseCheck) {
+        toast.error("Save your pulse check before completing this phase.")
+        return
+      }
+      setPhaseSaving(true)
+      const next = [...new Set([...(session.phases_completed ?? []), phaseId])]
+      let ok = false
       if (phaseId === "setup")
-        await updateSession({
+        ok = await updateSession({
           phases_completed: next,
           phase1_completed: true,
           phase1_checklist: toChecklistJson(phase1Checklist),
         })
-      else if (phaseId === "measure") await updateSession({ phases_completed: next })
-      else if (phaseId === "review") await updateSession({ phases_completed: next })
-      else if (phaseId === "learn") await updateSession({ phases_completed: next })
+      else if (phaseId === "measure") ok = await updateSession({ phases_completed: next })
+      else if (phaseId === "review") ok = await updateSession({ phases_completed: next })
+      else if (phaseId === "learn") ok = await updateSession({ phases_completed: next })
       else if (phaseId === "plan") {
-        await updateSession({ phases_completed: next, phase5_next_week_focus: nextWeekFocus, phase6_monday_top3: mondayTop3 })
-        await upsertWeeklyGoalsForSession(nextWeekFocus, session.date)
+        ok = await updateSession({
+          phases_completed: next,
+          phase5_next_week_focus: nextWeekFocus,
+          phase6_monday_top3: mondayTop3,
+        })
+        if (ok) await upsertWeeklyGoalsForSession(nextWeekFocus, session.date)
       } else
-        await updateSession({
+        ok = await updateSession({
           phases_completed: next,
           session_quality: sessionQuality,
           phase6_close_checklist: toChecklistJson(phase6ClosingChecklist),
         })
-      setSession((p) => (p ? { ...p, phases_completed: next } : null))
-      const nextExpanded = PHASE_IDS.find((id) => !next.includes(id) && !skippedPhases.has(id))
-      setExpandedPhase(nextExpanded ?? null)
+      if (ok) {
+        setSession((p) => (p ? { ...p, phases_completed: next } : null))
+        const nextExpanded = PHASE_IDS.find((id) => !next.includes(id) && !skippedPhases.has(id))
+        setExpandedPhase(nextExpanded ?? null)
+      }
+      setPhaseSaving(false)
     },
     [
       session,
+      phaseSaving,
       updateSession,
       nextWeekFocus,
       mondayTop3,
@@ -401,6 +501,7 @@ export function PulseClient(props: PulseClientProps) {
       upsertWeeklyGoalsForSession,
       phase1Checklist,
       phase6ClosingChecklist,
+      props.thisWeekPulseCheck,
     ]
   )
 
@@ -418,14 +519,18 @@ export function PulseClient(props: PulseClientProps) {
 
   const backfillDay = useCallback(
     async (date: string, data: Record<string, unknown>) => {
-      await supabase.from("daily_devotions").upsert(
+      const { error } = await supabase.from("daily_devotions").upsert(
         { user_id: props.userId, date, ...data },
         { onConflict: "user_id,date" }
       )
+      if (error) {
+        toast.error(`Could not save devotion: ${error.message}`)
+        return
+      }
       if (session) {
         const count = (session.phase2_backfill_count ?? 0) + 1
-        await updateSession({ phase2_backfill_count: count })
-        setSession((p) => (p ? { ...p, phase2_backfill_count: count } : null))
+        const ok = await updateSession({ phase2_backfill_count: count })
+        if (ok) setSession((p) => (p ? { ...p, phase2_backfill_count: count } : null))
       }
       router.refresh()
     },
@@ -434,30 +539,66 @@ export function PulseClient(props: PulseClientProps) {
 
   const savePulseCheck = useCallback(
     async (row: Record<string, unknown>): Promise<string | null> => {
+      const checkRow = {
+        ...row,
+        user_id: props.userId,
+        quarter_code: props.quarterCode,
+        week_number: props.weekNumber,
+      }
+
       if (session?.phase3_pulse_check_id) {
-        const { error } = await supabase.from("pulse_checks").update(row).eq("id", session.phase3_pulse_check_id)
+        const { error } = await supabase
+          .from("pulse_checks")
+          .update(row)
+          .eq("id", session.phase3_pulse_check_id)
         if (error) {
           console.error("[Pulse] pulse_check update:", error.message)
+          setPersistError(error.message)
           return null
         }
         setLastSavedAt(Date.now())
         router.refresh()
         return session.phase3_pulse_check_id
       }
+
+      const { data: existing } = await supabase
+        .from("pulse_checks")
+        .select("id")
+        .eq("user_id", props.userId)
+        .eq("quarter_code", props.quarterCode)
+        .eq("week_number", props.weekNumber)
+        .maybeSingle()
+
+      if (existing?.id) {
+        const { error } = await supabase.from("pulse_checks").update(row).eq("id", existing.id)
+        if (error) {
+          console.error("[Pulse] pulse_check update:", error.message)
+          setPersistError(error.message)
+          return null
+        }
+        if (session) await updateSession({ phase3_pulse_check_id: existing.id })
+        setLastSavedAt(Date.now())
+        router.refresh()
+        return existing.id
+      }
+
       const { data, error } = await supabase
         .from("pulse_checks")
-        .insert({ ...row, user_id: props.userId })
+        .upsert(checkRow, { onConflict: "user_id,quarter_code,week_number" })
         .select("id")
         .single()
-      if (error || !data) return null
+      if (error || !data) {
+        setPersistError(error?.message ?? "Could not save pulse check")
+        return null
+      }
       if (session) await updateSession({ phase3_pulse_check_id: data.id })
       setLastSavedAt(Date.now())
       return data.id
     },
-    [props.userId, session, updateSession, supabase, router]
+    [props.userId, props.quarterCode, props.weekNumber, session, updateSession, supabase, router]
   )
 
-  const saveDailyFocus = useCallback(
+  const saveDailyFocusInternal = useCallback(
     async (date: string, row: { focus_1: string; focus_2: string; focus_3: string; goal_1?: string; goal_2?: string; goal_3?: string }) => {
       const { data: existingRaw } = await supabase
         .from("daily_focus")
@@ -475,19 +616,55 @@ export function PulseClient(props: PulseClientProps) {
         goal_3: row.goal_3 ?? prev?.goal_3 ?? null,
       }
       const completed = prev ? completedSnapshotFromRow(prev) : EMPTY_DAILY_FOCUS_CHECKS
-      await supabase
+      const { error } = await supabase
         .from("daily_focus")
         .upsert(dailyFocusUpsertPayload(props.userId, date, textRow, completed), { onConflict: "user_id,date" })
+      if (error) {
+        setPersistError(error.message)
+        return false
+      }
       setLastSavedAt(Date.now())
-      router.refresh()
+      return true
     },
-    [props.userId, supabase, router]
+    [props.userId, supabase]
+  )
+
+  const flushDailyFocusSaves = useCallback(async () => {
+    if (dailyFocusSavingRef.current) return
+    dailyFocusSavingRef.current = true
+    try {
+      while (dailyFocusPendingRef.current.size > 0) {
+        const batch = new Map(dailyFocusPendingRef.current)
+        dailyFocusPendingRef.current.clear()
+        for (const [date, row] of batch) {
+          await saveDailyFocusInternal(date, row)
+        }
+      }
+      router.refresh()
+    } finally {
+      dailyFocusSavingRef.current = false
+      if (dailyFocusPendingRef.current.size > 0) {
+        void flushDailyFocusSaves()
+      }
+    }
+  }, [saveDailyFocusInternal, router])
+
+  const saveDailyFocus = useCallback(
+    async (date: string, row: { focus_1: string; focus_2: string; focus_3: string; goal_1?: string; goal_2?: string; goal_3?: string }) => {
+      dailyFocusPendingRef.current.set(date, row)
+      if (dailyFocusTimerRef.current) clearTimeout(dailyFocusTimerRef.current)
+      dailyFocusTimerRef.current = setTimeout(() => {
+        void flushDailyFocusSaves()
+      }, 300)
+    },
+    [flushDailyFocusSaves]
   )
 
   const completeSession = useCallback(async () => {
     if (!session) return
     setCompleting(true)
     setCompleteActionError(null)
+    setCompleteActionWarning(null)
     const completedAt = new Date().toISOString()
     const start = session.started_at ? new Date(session.started_at).getTime() : Date.now()
     const totalMinutes = Math.max(1, Math.round((Date.now() - start) / 60000))
@@ -509,7 +686,7 @@ export function PulseClient(props: PulseClientProps) {
     const completionExtra: Record<string, unknown> = {
       completed_at: completedAt,
       total_duration_minutes: totalMinutes,
-      phases_completed: [...PHASE_IDS],
+      phases_completed: [...new Set(session.phases_completed ?? [])],
     }
 
     const runPulseUpdate = async (payload: Record<string, unknown>) =>
@@ -551,7 +728,7 @@ export function PulseClient(props: PulseClientProps) {
                 ...p,
                 completed_at: completedAt,
                 total_duration_minutes: totalMinutes,
-                phases_completed: [...PHASE_IDS],
+                phases_completed: [...new Set(p.phases_completed ?? [])],
               }
             : null
         )
@@ -571,7 +748,8 @@ export function PulseClient(props: PulseClientProps) {
       if (checklistMigrationHint) parts.push(checklistMigrationHint)
       if (prayerRes.error) parts.push(`Prayer log failed: ${prayerRes.error.message}`)
       if (wgErr) parts.push(`Weekly goals: ${wgErr.message}`)
-      setCompleteActionError(parts.length ? parts.join(" ") : null)
+      if (parts.length) setCompleteActionWarning(parts.join(" "))
+      else setCompleteActionWarning(null)
 
       setLastSavedAt(Date.now())
     } finally {
@@ -601,10 +779,14 @@ export function PulseClient(props: PulseClientProps) {
       return
     }
     const t = setTimeout(async () => {
-      await supabase
+      const { error } = await supabase
         .from("pulse_sessions")
         .update({ phase5_next_week_focus: nextWeekFocus })
         .eq("id", session.id)
+      if (error) {
+        setPersistError(error.message)
+        return
+      }
       await upsertWeeklyGoalsForSession(nextWeekFocus, session.date)
       setLastSavedAt(Date.now())
       router.refresh()
@@ -627,7 +809,7 @@ export function PulseClient(props: PulseClientProps) {
   const phase5PersonalLine = personalProgress
     ? `Personal year ${personalProgress.progress}% complete (Week ${personalProgress.weekNumber} of 13)`
     : undefined
-  const phase5CalendarLine = formatCalendarQuarterEndingLine(calendarForSession)
+  const phase5CalendarLine = formatCalendarQuarterEndingLine(calendarForSession, sessionAnchorDate)
 
   const weekStats = useMemo(() => {
     const devotions = props.weekDevotions as {
@@ -735,6 +917,7 @@ export function PulseClient(props: PulseClientProps) {
           sessionComplete={!!session?.completed_at}
           sessionQuality={session?.session_quality ?? null}
           onBegin={beginSession}
+          beginningSession={beginningSession}
         />
       )}
 
@@ -782,6 +965,7 @@ export function PulseClient(props: PulseClientProps) {
               onMarkComplete={() => void markPhaseComplete(phase.id)}
               onSkip={() => skipPhase(phase.id)}
               canSkip={true}
+              markCompleteDisabled={phaseSaving}
             >
               {phase.id === "setup" && (
                 <Phase1Setup checklist={phase1Checklist} onChecklistChange={setPhase1Checklist} />
@@ -870,6 +1054,7 @@ export function PulseClient(props: PulseClientProps) {
                   completing={completing}
                   sessionAlreadyComplete={!!session?.completed_at}
                   errorMessage={completeActionError}
+                  warningMessage={completeActionWarning}
                 />
               )}
             </PhaseCard>

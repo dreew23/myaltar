@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { toast } from "sonner"
 import { ChevronDown, ChevronRight } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { prayerAreas } from "@/lib/data/dominion"
@@ -91,6 +92,8 @@ interface Props {
   onSessionUpdate: (session: PrayerSession) => void
   onDeclarationLogsUpdate: (logs: DeclarationLog[]) => void
   onChallengesUpdate: (rows: PrayerChallengeRow[]) => void
+  onPrayRequestUpdate?: (request: PrayerRequest) => void
+  onPrayEventAdded?: (event: { request_id: string; prayed_date: string }) => void
   scheduleComplete: boolean
 }
 
@@ -107,6 +110,8 @@ export function PrayerModeFlow({
   onSessionUpdate,
   onDeclarationLogsUpdate,
   onChallengesUpdate,
+  onPrayRequestUpdate,
+  onPrayEventAdded,
   scheduleComplete,
 }: Props) {
   const router = useRouter()
@@ -263,10 +268,33 @@ export function PrayerModeFlow({
       onSessionUpdate(data as PrayerSession)
       setPhase("engage")
       setAreasCovered([])
+    } else if (error) {
+      toast.error(error.message)
+    }
+  }
+
+  const closeOrphanSessions = async () => {
+    const { data: orphans } = await supabase
+      .from("prayer_sessions")
+      .select("id, date")
+      .eq("user_id", userId)
+      .is("end_time", null)
+      .lt("date", todayStr)
+
+    for (const orphan of orphans ?? []) {
+      await supabase
+        .from("prayer_sessions")
+        .update({
+          end_time: new Date(orphan.date + "T23:59:59").toISOString(),
+          duration_minutes: 1,
+        })
+        .eq("id", orphan.id)
+        .eq("user_id", userId)
     }
   }
 
   const tryBeginSession = async () => {
+    await closeOrphanSessions()
     const { data: inProgress } = await supabase
       .from("prayer_sessions")
       .select("*")
@@ -395,42 +423,74 @@ export function PrayerModeFlow({
     .slice(0, 6)
 
   const prayedToday = async (req: PrayerRequest) => {
-    const { error: e1 } = await supabase.from("prayer_request_pray_events").upsert(
-      {
+    const { data: existingEvent } = await supabase
+      .from("prayer_request_pray_events")
+      .select("request_id")
+      .eq("request_id", req.id)
+      .eq("prayed_date", todayStr)
+      .eq("user_id", userId)
+      .maybeSingle()
+
+    if (!existingEvent) {
+      const { error: e1 } = await supabase.from("prayer_request_pray_events").insert({
         user_id: userId,
         request_id: req.id,
         prayed_date: todayStr,
-      },
-      { onConflict: "request_id,prayed_date" }
-    )
-    if (e1) return
+      })
+      if (e1) {
+        toast.error(e1.message)
+        return
+      }
+      onPrayEventAdded?.({ request_id: req.id, prayed_date: todayStr })
+    }
+
+    if (existingEvent) return
+
     const next = (req.prayed_count ?? 0) + 1
-    await supabase
+    const { data, error } = await supabase
       .from("prayer_requests")
       .update({
         prayed_count: next,
         last_prayed_at: todayStr,
       })
       .eq("id", req.id)
+      .eq("user_id", userId)
+      .select()
+      .single()
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    if (data) onPrayRequestUpdate?.(data as PrayerRequest)
   }
 
   const bumpChallenge = async (c: PrayerChallengeRow, delta: number) => {
     const mon = mondayDateString()
     let row = c
     if (c.week_start_monday !== mon) {
-      await supabase
+      const { error: resetError } = await supabase
         .from("prayer_challenges")
         .update({ weekly_progress: 0, week_start_monday: mon })
         .eq("id", c.id)
+        .eq("user_id", userId)
+      if (resetError) {
+        toast.error(resetError.message)
+        return
+      }
       row = { ...c, weekly_progress: 0, week_start_monday: mon }
     }
     const next = Math.max(0, row.weekly_progress + delta)
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("prayer_challenges")
       .update({ weekly_progress: next, week_start_monday: mon })
       .eq("id", c.id)
+      .eq("user_id", userId)
       .select()
       .single()
+    if (error) {
+      toast.error(error.message)
+      return
+    }
     if (data) {
       const next = data as PrayerChallengeRow
       setChallengeRows((prev) => {

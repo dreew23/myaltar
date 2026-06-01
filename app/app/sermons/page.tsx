@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { getMondayOfWeek, localCalendarDateString } from "@/lib/prayer-week"
 import { SermonsClient } from "./sermons-client"
@@ -12,7 +13,7 @@ function getWeekStartMonday(d: Date): string {
 export default async function SermonsPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
+  if (!user) redirect("/login")
 
   const weekStartStr = getWeekStartMonday(new Date())
 

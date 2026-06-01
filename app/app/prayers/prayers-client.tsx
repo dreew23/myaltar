@@ -5,6 +5,7 @@ import { Plus, Heart, Sparkles, X, Users, Check, Church, Briefcase, Building2, G
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { createClient } from "@/lib/supabase/client"
+import { toast } from "sonner"
 import { intercessionRotation } from "@/lib/data/dominion"
 
 export interface Prayer {
@@ -70,6 +71,8 @@ export function PrayersClient({ prayers: initialPrayers, userId, todayIntercessi
       setPrayers([data, ...prayers])
       setForm({ title: "", description: "", prayer_type: "intercession" })
       setShowModal(false)
+    } else if (error) {
+      toast.error(error.message)
     }
     setSaving(false)
   }
@@ -78,8 +81,21 @@ export function PrayersClient({ prayers: initialPrayers, userId, todayIntercessi
     if (!showAnsweredModal) return
     setSaving(true)
     const supabase = createClient()
-    await supabase.from("prayers").update({ status: "answered", answer_notes: answerNotes || null }).eq("id", showAnsweredModal.id)
-    setPrayers(prayers.map((p) => (p.id === showAnsweredModal.id ? { ...p, status: "answered", answer_notes: answerNotes } : p)))
+    const { data, error } = await supabase
+      .from("prayers")
+      .update({ status: "answered", answer_notes: answerNotes || null })
+      .eq("id", showAnsweredModal.id)
+      .eq("user_id", userId)
+      .select()
+      .single()
+    if (error) {
+      toast.error(error.message)
+      setSaving(false)
+      return
+    }
+    if (data) {
+      setPrayers(prayers.map((p) => (p.id === showAnsweredModal.id ? (data as Prayer) : p)))
+    }
     setShowAnsweredModal(null)
     setAnswerNotes("")
     setSaving(false)
@@ -87,7 +103,11 @@ export function PrayersClient({ prayers: initialPrayers, userId, todayIntercessi
 
   const deletePrayer = async (id: string) => {
     const supabase = createClient()
-    await supabase.from("prayers").delete().eq("id", id)
+    const { error } = await supabase.from("prayers").delete().eq("id", id).eq("user_id", userId)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
     setPrayers(prayers.filter((p) => p.id !== id))
   }
 

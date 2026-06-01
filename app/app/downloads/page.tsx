@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { DownloadsClient } from "./downloads-client"
 
@@ -6,7 +7,7 @@ export const metadata = { title: "Divine Downloads | ALTAR" }
 export default async function DownloadsPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
+  if (!user) redirect("/login")
 
   const [downloadsRes, insightsRes, sermonsRes] = await Promise.all([
     supabase

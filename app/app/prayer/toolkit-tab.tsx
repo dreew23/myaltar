@@ -7,11 +7,14 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { createClient } from "@/lib/supabase/client"
+import { toast } from "sonner"
 import {
   SAVED_PRAYER_CATEGORIES,
   WARFARE_CATEGORIES,
   type PrayerChallengeRow,
   type SavedPrayer,
+  type SavedPrayerCategory,
+  type WarfareCategory,
   type WarfareScripture,
 } from "@/lib/prayer"
 import { prayerAreas } from "@/lib/data/dominion"
@@ -47,6 +50,19 @@ export function ToolkitTab({
   const [prayNowPrayer, setPrayNowPrayer] = useState<SavedPrayer | null>(null)
   const [prayNowWarfare, setPrayNowWarfare] = useState<WarfareScripture | null>(null)
   const [challengeRows, setChallengeRows] = useState(challenges)
+  const [prayerForm, setPrayerForm] = useState({
+    title: "",
+    content: "",
+    category: "personal" as SavedPrayerCategory,
+  })
+  const [warfareForm, setWarfareForm] = useState({
+    battle_category: "general_warfare" as WarfareCategory,
+    scripture_reference: "",
+    scripture_text: "",
+    how_to_pray_it: "",
+  })
+  const [savingPrayer, setSavingPrayer] = useState(false)
+  const [savingWarfare, setSavingWarfare] = useState(false)
 
   useEffect(() => {
     setChallengeRows(challenges)
@@ -62,16 +78,29 @@ export function ToolkitTab({
     const mon = mondayDateString()
     let base = c
     if (c.week_start_monday !== mon) {
-      await supabase.from("prayer_challenges").update({ weekly_progress: 0, week_start_monday: mon }).eq("id", c.id)
+      const { error: resetError } = await supabase
+        .from("prayer_challenges")
+        .update({ weekly_progress: 0, week_start_monday: mon })
+        .eq("id", c.id)
+        .eq("user_id", userId)
+      if (resetError) {
+        toast.error(resetError.message)
+        return
+      }
       base = { ...c, weekly_progress: 0, week_start_monday: mon }
     }
     const next = Math.max(0, base.weekly_progress + delta)
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("prayer_challenges")
       .update({ weekly_progress: next, week_start_monday: mon })
       .eq("id", c.id)
+      .eq("user_id", userId)
       .select()
       .single()
+    if (error) {
+      toast.error(error.message)
+      return
+    }
     if (data) {
       const row = data as PrayerChallengeRow
       setChallengeRows((prev) => {
@@ -87,21 +116,85 @@ export function ToolkitTab({
 
   const markPrayerUsed = async (prayer: SavedPrayer) => {
     const today = localCalendarDateString()
-    await supabase
+    const { data, error } = await supabase
       .from("saved_prayers")
       .update({
         use_count: (prayer.use_count ?? 0) + 1,
         last_used_date: today,
       })
       .eq("id", prayer.id)
-    onSavedPrayersUpdate(
-      savedPrayers.map((p) =>
-        p.id === prayer.id
-          ? { ...p, use_count: (p.use_count ?? 0) + 1, last_used_date: today }
-          : p
+      .eq("user_id", userId)
+      .select()
+      .single()
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    if (data) {
+      onSavedPrayersUpdate(
+        savedPrayers.map((p) => (p.id === prayer.id ? (data as SavedPrayer) : p))
       )
-    )
+    }
     setPrayNowPrayer(null)
+  }
+
+  const saveNewPrayer = async () => {
+    if (!prayerForm.title.trim() || !prayerForm.content.trim()) return
+    setSavingPrayer(true)
+    const { data, error } = await supabase
+      .from("saved_prayers")
+      .insert({
+        user_id: userId,
+        title: prayerForm.title.trim(),
+        content: prayerForm.content.trim(),
+        category: prayerForm.category,
+        scripture_references: [],
+        tags: [],
+        active: true,
+      })
+      .select()
+      .single()
+    setSavingPrayer(false)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    if (data) {
+      onSavedPrayersUpdate([data as SavedPrayer, ...savedPrayers])
+      setPrayerForm({ title: "", content: "", category: "personal" })
+      setPrayerFormOpen(false)
+    }
+  }
+
+  const saveNewWarfare = async () => {
+    if (!warfareForm.scripture_reference.trim() || !warfareForm.scripture_text.trim()) return
+    setSavingWarfare(true)
+    const { data, error } = await supabase
+      .from("warfare_scriptures")
+      .insert({
+        user_id: userId,
+        battle_category: warfareForm.battle_category,
+        scripture_reference: warfareForm.scripture_reference.trim(),
+        scripture_text: warfareForm.scripture_text.trim(),
+        how_to_pray_it: warfareForm.how_to_pray_it.trim() || null,
+      })
+      .select()
+      .single()
+    setSavingWarfare(false)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    if (data) {
+      onWarfareUpdate([data as WarfareScripture, ...warfareScriptures])
+      setWarfareForm({
+        battle_category: "general_warfare",
+        scripture_reference: "",
+        scripture_text: "",
+        how_to_pray_it: "",
+      })
+      setWarfareFormOpen(false)
+    }
   }
 
   return (
@@ -407,14 +500,39 @@ export function ToolkitTab({
         </div>
       )}
 
-      {/* Add prayer modal - minimal for now */}
       <Dialog open={prayerFormOpen} onOpenChange={setPrayerFormOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="font-playfair">Save Prayer</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-[#3C1E38]/60">Add prayer form (title, category, content, scripture refs) — implement full form as needed.</p>
-          <Button onClick={() => setPrayerFormOpen(false)}>Close</Button>
+          <div className="space-y-3">
+            <input
+              type="text"
+              value={prayerForm.title}
+              onChange={(e) => setPrayerForm((p) => ({ ...p, title: e.target.value }))}
+              placeholder="Title"
+              className="w-full px-3 py-2 border border-[#A7C2D7]/20 rounded-lg text-sm"
+            />
+            <select
+              value={prayerForm.category}
+              onChange={(e) => setPrayerForm((p) => ({ ...p, category: e.target.value as SavedPrayerCategory }))}
+              className="w-full px-3 py-2 border border-[#A7C2D7]/20 rounded-lg text-sm"
+            >
+              {SAVED_PRAYER_CATEGORIES.map((c) => (
+                <option key={c.value} value={c.value}>{c.label}</option>
+              ))}
+            </select>
+            <textarea
+              value={prayerForm.content}
+              onChange={(e) => setPrayerForm((p) => ({ ...p, content: e.target.value }))}
+              placeholder="Prayer content"
+              rows={5}
+              className="w-full px-3 py-2 border border-[#A7C2D7]/20 rounded-lg text-sm"
+            />
+          </div>
+          <Button onClick={() => void saveNewPrayer()} disabled={savingPrayer}>
+            {savingPrayer ? "Saving…" : "Save Prayer"}
+          </Button>
         </DialogContent>
       </Dialog>
 
@@ -423,8 +541,41 @@ export function ToolkitTab({
           <DialogHeader>
             <DialogTitle className="font-playfair">Add Warfare Scripture</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-[#3C1E38]/60">Add warfare form (category, reference, text, how to pray) — implement full form as needed.</p>
-          <Button onClick={() => setWarfareFormOpen(false)}>Close</Button>
+          <div className="space-y-3">
+            <select
+              value={warfareForm.battle_category}
+              onChange={(e) => setWarfareForm((p) => ({ ...p, battle_category: e.target.value as WarfareCategory }))}
+              className="w-full px-3 py-2 border border-[#A7C2D7]/20 rounded-lg text-sm"
+            >
+              {WARFARE_CATEGORIES.map((c) => (
+                <option key={c.value} value={c.value}>{c.label}</option>
+              ))}
+            </select>
+            <input
+              type="text"
+              value={warfareForm.scripture_reference}
+              onChange={(e) => setWarfareForm((p) => ({ ...p, scripture_reference: e.target.value }))}
+              placeholder="Scripture reference"
+              className="w-full px-3 py-2 border border-[#A7C2D7]/20 rounded-lg text-sm"
+            />
+            <textarea
+              value={warfareForm.scripture_text}
+              onChange={(e) => setWarfareForm((p) => ({ ...p, scripture_text: e.target.value }))}
+              placeholder="Scripture text"
+              rows={4}
+              className="w-full px-3 py-2 border border-[#A7C2D7]/20 rounded-lg text-sm"
+            />
+            <textarea
+              value={warfareForm.how_to_pray_it}
+              onChange={(e) => setWarfareForm((p) => ({ ...p, how_to_pray_it: e.target.value }))}
+              placeholder="How to pray it (optional)"
+              rows={3}
+              className="w-full px-3 py-2 border border-[#A7C2D7]/20 rounded-lg text-sm"
+            />
+          </div>
+          <Button onClick={() => void saveNewWarfare()} disabled={savingWarfare}>
+            {savingWarfare ? "Saving…" : "Add Scripture"}
+          </Button>
         </DialogContent>
       </Dialog>
     </div>

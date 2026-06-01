@@ -31,6 +31,7 @@ import {
 } from "@/lib/daily-focus-checklist"
 import type { WeeklyCommitment, WeeklyCommitmentLog } from "@/lib/weekly-commitments"
 import { WeeklyCommitmentsCard } from "@/components/app/dashboard/weekly-commitments-card"
+import type { IntercessionDayRow } from "@/components/app/settings/intercession-editor"
 
 interface WeeklyGoalsRow {
   id: string
@@ -86,6 +87,7 @@ interface Props {
   weeklyCommitments: WeeklyCommitment[]
   weeklyCommitmentLogs: WeeklyCommitmentLog[]
   declarationsForPicker: { id: string; text: string }[]
+  intercessionSchedule: IntercessionDayRow[] | null
 }
 
 const GOAL_CODES = ["G1", "G2", "G3", "G4", "G5", "G6", "G7"] as const
@@ -103,6 +105,7 @@ export function DashboardClient({
   weeklyCommitments,
   weeklyCommitmentLogs,
   declarationsForPicker,
+  intercessionSchedule,
 }: Props) {
   const router = useRouter()
   const verse = getTodayVerse()
@@ -417,6 +420,7 @@ export function DashboardClient({
         initialCommitments={weeklyCommitments}
         initialLogs={weeklyCommitmentLogs}
         declarations={declarationsForPicker}
+        intercessionSchedule={intercessionSchedule}
       />
 
       {/* Mon–Sat: Pulse + Prayer (Sunday uses the gold card below) */}

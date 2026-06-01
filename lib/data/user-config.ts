@@ -27,7 +27,6 @@ export async function getTodayIntercessionForUser(
 
     if (rows && rows.length === 7) {
       const row = rows.find((r) => (r as { day_of_week: number }).day_of_week === dayOfWeek)
-        ?? rows[dayOfWeek]
       if (row) {
         const r = row as { theme: string; people?: string[]; life_areas?: string[] }
         const people = r.people ?? []

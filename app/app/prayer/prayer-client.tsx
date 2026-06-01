@@ -50,7 +50,7 @@ export function PrayerClient({
   const [savedPrayers, setSavedPrayers] = useState(initialSavedPrayers)
   const [warfareScriptures, setWarfareScriptures] = useState(initialWarfare)
   const [prayerRequests, setPrayerRequests] = useState(initialRequests)
-  const [prayEvents] = useState(initialPrayEvents)
+  const [prayEvents, setPrayEvents] = useState(initialPrayEvents)
   const [sessionsList, setSessionsList] = useState(sessions)
   const [declLogs, setDeclLogs] = useState(initialDeclLogs)
   const [challenges, setChallenges] = useState(initialChallenges)
@@ -59,6 +59,22 @@ export function PrayerClient({
   useEffect(() => {
     setSessionsList(sessions)
   }, [sessions])
+
+  useEffect(() => {
+    setSavedPrayers(initialSavedPrayers)
+  }, [initialSavedPrayers])
+
+  useEffect(() => {
+    setWarfareScriptures(initialWarfare)
+  }, [initialWarfare])
+
+  useEffect(() => {
+    setPrayerRequests(initialRequests)
+  }, [initialRequests])
+
+  useEffect(() => {
+    setPrayEvents(initialPrayEvents)
+  }, [initialPrayEvents])
 
   useEffect(() => {
     setDeclLogs(initialDeclLogs)
@@ -188,6 +204,17 @@ export function PrayerClient({
                 })
               }}
               onChallengesUpdate={setChallenges}
+              onPrayRequestUpdate={(updated) => {
+                setPrayerRequests((prev) => prev.map((r) => (r.id === updated.id ? updated : r)))
+              }}
+              onPrayEventAdded={(event) => {
+                setPrayEvents((prev) => {
+                  if (prev.some((e) => e.request_id === event.request_id && e.prayed_date === event.prayed_date)) {
+                    return prev
+                  }
+                  return [...prev, event]
+                })
+              }}
               scheduleComplete={scheduleComplete}
             />
           )}
@@ -203,6 +230,14 @@ export function PrayerClient({
             prayEvents={prayEvents}
             userId={userId}
             onRequestsUpdate={setPrayerRequests}
+            onPrayEventAdded={(event) => {
+              setPrayEvents((prev) => {
+                if (prev.some((e) => e.request_id === event.request_id && e.prayed_date === event.prayed_date)) {
+                  return prev
+                }
+                return [...prev, event]
+              })
+            }}
           />
         </TabsContent>
 

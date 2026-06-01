@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
+import { sanitizeRedirectPath } from "@/lib/auth-redirect"
 
 /**
  * OAuth / magic-link / email confirmation: exchange `code` for a session and set cookies on the redirect response.
@@ -8,7 +9,7 @@ import { NextResponse, type NextRequest } from "next/server"
 export async function GET(request: NextRequest) {
   const url = new URL(request.url)
   const code = url.searchParams.get("code")
-  const next = url.searchParams.get("next") ?? "/app/dashboard"
+  const next = sanitizeRedirectPath(url.searchParams.get("next"))
 
   if (code) {
     const redirectUrl = new URL(next, url.origin)

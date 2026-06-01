@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import type { WisdomEntry, AlignedDecision } from "@/lib/wisdom-log"
 import { JournalClient } from "./journal-client"
@@ -7,7 +8,7 @@ export const metadata = { title: "Wisdom Log | ALTAR" }
 export default async function JournalPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
+  if (!user) redirect("/login")
 
   let wisdomEntries: WisdomEntry[] = []
   let decisions: AlignedDecision[] = []

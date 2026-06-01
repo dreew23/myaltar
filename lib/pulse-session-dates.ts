@@ -18,7 +18,36 @@ export function getWeekStartMonday(d: Date): Date {
 }
 
 export function getWeekNumberOfYear(d: Date): number {
-  return Math.ceil((d.getTime() - new Date(d.getFullYear(), 0, 1).getTime()) / 86400000 / 7)
+  const normalized = new Date(d)
+  normalized.setHours(12, 0, 0, 0)
+  const jan1 = new Date(normalized.getFullYear(), 0, 1)
+  jan1.setHours(12, 0, 0, 0)
+  return Math.max(1, Math.ceil((normalized.getTime() - jan1.getTime()) / 86400000 / 7))
+}
+
+/** Sunday (YYYY-MM-DD) identifying the Sun–Sun planning week containing dateStr. */
+export function getPlanningWeekSunday(dateStr: string): string {
+  const d = new Date(dateStr + "T12:00:00")
+  const sun = new Date(d)
+  sun.setDate(d.getDate() - d.getDay())
+  return toLocalISODate(sun)
+}
+
+/** Local calendar day bounds as UTC ISO strings for timestamptz filters. */
+export function localDateToUtcBounds(dateStr: string): { start: string; end: string } {
+  return {
+    start: new Date(dateStr + "T00:00:00").toISOString(),
+    end: new Date(dateStr + "T23:59:59.999").toISOString(),
+  }
+}
+
+/** 0-based day index within the calendar year (Jan 1 = 0). Uses local noon to avoid DST edges. */
+export function dayOfYearIndex(at: Date = new Date()): number {
+  const noonDate = new Date(at)
+  noonDate.setHours(12, 0, 0, 0)
+  const jan1 = new Date(noonDate.getFullYear(), 0, 1)
+  jan1.setHours(12, 0, 0, 0)
+  return Math.floor((noonDate.getTime() - jan1.getTime()) / 86400000)
 }
 
 export function getQuarterCodeForDate(d: Date): string {

@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { localCalendarDateString } from "@/lib/prayer-week"
 import { getGoalsForUser } from "@/lib/data/user-config"
@@ -10,7 +11,7 @@ export const metadata = { title: "Spiritual Goals | ALTAR" }
 export default async function GoalsPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
+  if (!user) redirect("/login")
 
   const goals = await getGoalsForUser(supabase, user.id)
 
