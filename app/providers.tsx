@@ -32,16 +32,16 @@ export function AppProviders({ children }: { children: ReactNode }) {
     pathname !== null &&
     MARKETING_PATHS.some((p) => p === pathname || (p !== "/" && pathname.startsWith(p)))
 
-  const [isOnline, setIsOnline] = useState(
-    typeof navigator !== "undefined" ? navigator.onLine : true
-  )
+  const [isOnline, setIsOnline] = useState(true)
   const [updateAction, setUpdateAction] = useState<null | (() => void)>(null)
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null)
   const [hideInstallCta, setHideInstallCta] = useState(false)
 
   useEffect(() => {
+    const syncOnline = () => setIsOnline(navigator.onLine)
     const online = () => setIsOnline(true)
     const offline = () => setIsOnline(false)
+    syncOnline()
     window.addEventListener("online", online)
     window.addEventListener("offline", offline)
     return () => {
