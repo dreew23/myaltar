@@ -493,17 +493,15 @@ export function PulseClient(props: PulseClientProps) {
   const markPhaseComplete = useCallback(
     async (phaseId: PhaseId) => {
       if (!session || phaseSaving) return
-      if (phaseId === "review" && !isReviewPulseCheckReady()) {
+      if (phaseId === "review") {
         setPhaseSaving(true)
-        const id = (await phase3SaveRef.current?.()) ?? null
-        if (!id && !isReviewPulseCheckReady()) {
-          setPhaseSaving(false)
-          toast.error(
-            "Could not save your pulse check. Tap Save Pulse Check first, or check the error banner above."
-          )
-          return
-        }
+        await phase3SaveRef.current?.()
         setPhaseSaving(false)
+        if (!isReviewPulseCheckReady()) {
+          toast.warning(
+            "Pulse check could not be saved to the database. Continuing to the next phase — if this keeps happening, run the pulse_checks migration in Supabase."
+          )
+        }
       }
       setPhaseSaving(true)
       const next = [...new Set([...(session.phases_completed ?? []), phaseId])]
