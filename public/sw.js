@@ -1,5 +1,5 @@
 /* Bump CACHE_NAME when you change caching rules so old caches are dropped. */
-const CACHE_NAME = 'altar-v4'
+const CACHE_NAME = 'altar-v5'
 const STATIC_SHELL = ['/manifest.json']
 
 self.addEventListener('install', (event) => {

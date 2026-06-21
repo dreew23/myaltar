@@ -1045,7 +1045,12 @@ export function PulseClient(props: PulseClientProps) {
 
       {showPhases && (
         <div className="space-y-3">
-          <h2 className="font-playfair text-xl font-bold text-[#3C1E38]">The 6 phases</h2>
+          <div className="flex items-baseline justify-between gap-2">
+            <h2 className="font-playfair text-xl font-bold text-[#3C1E38]">The 6 phases</h2>
+            <span className="text-[10px] text-[#3C1E38]/35 tabular-nums shrink-0">
+              build {process.env.NEXT_PUBLIC_APP_BUILD ?? "local"}
+            </span>
+          </div>
           {PHASES.map((phase, i) => (
             <PhaseCard
               key={phase.id}

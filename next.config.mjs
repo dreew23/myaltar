@@ -8,6 +8,18 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const nextConfig = {
   // Pin tracing to this app (avoids wrong root when a parent folder has another lockfile)
   outputFileTracingRoot: path.join(__dirname),
+  env: {
+    NEXT_PUBLIC_APP_BUILD:
+      process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? process.env.APP_BUILD ?? "local",
+  },
+  async headers() {
+    return [
+      {
+        source: "/app/:path*",
+        headers: [{ key: "Cache-Control", value: "no-store, must-revalidate" }],
+      },
+    ]
+  },
   images: {
     unoptimized: true,
   },
