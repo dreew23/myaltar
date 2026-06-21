@@ -2,10 +2,12 @@ import { redirect } from "next/navigation"
 import { normalizeDailyFocusRow, type DailyFocusRow } from "@/lib/daily-focus-checklist"
 import { localCalendarDateString } from "@/lib/prayer-week"
 import { createClient } from "@/lib/supabase/server"
-import { getTodayIntercessionForUser } from "@/lib/data/user-config"
+import { getTodayIntercessionForUser, getPrayerScheduleForUser } from "@/lib/data/user-config"
 import type { PersonalYearConfigRow } from "@/lib/personal-year"
 import type { WeeklyCommitment, WeeklyCommitmentLog } from "@/lib/weekly-commitments"
 import type { IntercessionDayRow } from "@/components/app/settings/intercession-editor"
+import type { PrayerScheduleConfig } from "@/lib/prayer-schedule"
+import { normalizePrayerSlotsCompleted } from "@/lib/prayer-schedule"
 import { DashboardClient } from "./dashboard-client"
 
 export const metadata = { title: "DOMINION | ALTAR" }
@@ -18,6 +20,7 @@ function safeTodayLog(raw: Record<string, unknown> | null) {
   const items = raw.gratitude_items
   return {
     prayer_complete: Boolean(raw.prayer_complete),
+    prayer_slots_completed: normalizePrayerSlotsCompleted(raw.prayer_slots_completed),
     declarations_complete: Boolean(raw.declarations_complete),
     gratitude_complete: Boolean(raw.gratitude_complete),
     sermons_today: typeof raw.sermons_today === "number" ? raw.sermons_today : 0,
@@ -32,6 +35,7 @@ export default async function DashboardPage() {
   if (!user) redirect("/login")
 
   const todayIntercession = await getTodayIntercessionForUser(supabase, user.id)
+  const prayerSchedule = await getPrayerScheduleForUser(supabase, user.id)
 
   const today = new Date()
   const todayStr = localCalendarDateString(today)
@@ -386,6 +390,7 @@ export default async function DashboardPage() {
       weeklyCommitmentLogs={weeklyCommitmentLogs}
       declarationsForPicker={activeDeclarationsForPicker}
       intercessionSchedule={intercessionScheduleRows}
+      prayerSchedule={prayerSchedule}
     />
   )
 }

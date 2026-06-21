@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useRef, useState, useTransition } from "react"
+import { toast } from "sonner"
 import {
   BookOpen,
   ChevronRight,
@@ -41,6 +42,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { createClient } from "@/lib/supabase/client"
+import { ensureOnlineFor } from "@/lib/online-guard"
 import {
   COMMITMENT_TYPES,
   COMMITMENT_TYPE_META,
@@ -50,6 +52,8 @@ import {
   intercessionThemesForPicker,
   intercessionTitleForDay,
   logMapByCommitmentAndDate,
+  weeklyCommitmentInsertPayload,
+  weeklyCommitmentSaveErrorMessage,
   type CommitmentType,
   type IntercessionThemeOption,
   type WeeklyCommitment,
@@ -121,6 +125,7 @@ export function WeeklyCommitmentsCard({
   const [adding, setAdding] = useState(false)
   const [form, setForm] = useState<AddFormState>(EMPTY_ADD_FORM)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
   const [, startTransition] = useTransition()
 
   const days = useMemo(() => daysForWeek(weekStartStr), [weekStartStr])
@@ -155,32 +160,47 @@ export function WeeklyCommitmentsCard({
 
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!ensureOnlineFor("save commitments")) return
     const target = parseInt(form.daily_target, 10)
-    if (!form.title.trim() || !Number.isFinite(target) || target <= 0) return
-    const payload = {
-      user_id: userId,
-      week_start_date: weekStartStr,
-      type: form.type,
-      title: form.title.trim(),
-      daily_target: target,
-      unit: form.unit.trim() || COMMITMENT_TYPE_META[form.type].defaultUnit,
-      declaration_id:
-        form.type === "declaration_reps" && form.declaration_id ? form.declaration_id : null,
-      intercession_day_of_week:
-        form.type === "intercession" && form.intercession_day_of_week !== ""
-          ? parseInt(form.intercession_day_of_week, 10)
-          : null,
-      display_order: commitments.length,
+    if (!form.title.trim() || !Number.isFinite(target) || target <= 0) {
+      toast.error("Enter a title and a daily target greater than zero.")
+      return
     }
+    const intercessionDay =
+      form.type === "intercession" && form.intercession_day_of_week !== ""
+        ? parseInt(form.intercession_day_of_week, 10)
+        : null
+    const payload = weeklyCommitmentInsertPayload({
+      userId,
+      weekStartStr,
+      type: form.type,
+      title: form.title,
+      dailyTarget: target,
+      unit: form.unit,
+      declarationId:
+        form.type === "declaration_reps" && form.declaration_id ? form.declaration_id : null,
+      intercessionDayOfWeek: Number.isFinite(intercessionDay) ? intercessionDay : null,
+      displayOrder: commitments.length,
+    })
+    setSaving(true)
     const { data, error } = await supabase
       .from("weekly_commitments")
       .insert(payload)
       .select()
       .single()
-    if (error || !data) return
+    setSaving(false)
+    if (error) {
+      toast.error(weeklyCommitmentSaveErrorMessage(error))
+      return
+    }
+    if (!data) {
+      toast.error("Commitment was not saved. Please try again.")
+      return
+    }
     setCommitments((prev) => [...prev, data as WeeklyCommitment])
     setForm(EMPTY_ADD_FORM)
     setAdding(false)
+    toast.success("Commitment saved")
   }
 
   const handleDelete = async (id: string) => {
@@ -235,6 +255,7 @@ export function WeeklyCommitmentsCard({
           declarations={declarations}
           intercessionThemes={intercessionThemes}
           onIntercessionDayChange={handleIntercessionDayChange}
+          saving={saving}
         />
       )}
 
@@ -290,6 +311,7 @@ function AddCommitmentForm({
   declarations,
   intercessionThemes,
   onIntercessionDayChange,
+  saving,
 }: {
   form: AddFormState
   setForm: React.Dispatch<React.SetStateAction<AddFormState>>
@@ -299,6 +321,7 @@ function AddCommitmentForm({
   declarations: { id: string; text: string }[]
   intercessionThemes: IntercessionThemeOption[]
   onIntercessionDayChange: (dayStr: string) => void
+  saving: boolean
 }) {
   return (
     <form
@@ -411,9 +434,10 @@ function AddCommitmentForm({
         <Button
           type="submit"
           size="sm"
-          className="bg-[#3C1E38] hover:bg-[#3C1E38]/90 text-[#F9D57E]"
+          disabled={saving}
+          className="bg-[#3C1E38] hover:bg-[#3C1E38]/90 text-[#F9D57E] disabled:opacity-60"
         >
-          Save commitment
+          {saving ? "Saving…" : "Save commitment"}
         </Button>
       </div>
     </form>

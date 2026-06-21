@@ -50,7 +50,7 @@ export interface GoalConfig {
   iconKey: string
   pulseQuestion: string
   pulseType: "yesno" | "scale"
-  dbField: string      // column prefix in pulse_checks table
+  dbField: string      // pulse_checks value column (e.g. g1_prayer); notes use g1_note … g7_note
   kr10x: string
   kr5x: string
   kr2x: string
@@ -61,13 +61,13 @@ export const GOALS: GoalConfig[] = [
   {
     id: "G1",
     name: "Prayer Foundation",
-    subtitle: "Maintain 95%+ consistency with 3-5am prayer",
+    subtitle: "Maintain 95%+ consistency with your chosen prayer watches",
     description: "DOMINION requires a foundation that cannot be moved. Without consistent, deep communion with God, every other life area lacks its power source. Your career decisions, health management, financial wisdom, and relational discernment all flow from this place.",
     iconKey: "flame",
-    pulseQuestion: "Did I maintain 95%+ prayer consistency this week?",
+    pulseQuestion: "Did I maintain 95%+ prayer consistency on my watches this week?",
     pulseType: "yesno",
     dbField: "g1_prayer",
-    kr10x: "Achieve 95%+ consistency on 3-5am prayer sessions across quarter (87+ of 91 days), with 30+ divine downloads documented and actioned",
+    kr10x: "Achieve 95%+ consistency on your primary prayer watch across the quarter (87+ of 91 days), with 30+ divine downloads documented and actioned",
     kr5x: "Build a prayer framework with rotating focus across 10 life areas",
     kr2x: "Maintain daily gratitude practice (3 entries) as bookend to prayer session, 90%+ consistency",
     notNow: ["Elaborate prayer journaling with 7+ fields per entry", "Teaching others to pray or creating prayer content publicly", "Multiple fasting cycles this quarter"],
@@ -157,6 +157,12 @@ export const GOALS: GoalConfig[] = [
     notNow: ["Weekly spiritual content publishing schedule", "Faith & Excellence branded content series", "Monthly spiritual newsletter", "Monetizing spiritual content in any form"],
   },
 ]
+
+/** pulse_checks note columns are g1_note … g7_note, not g1_prayer_note. */
+export function pulseCheckNoteField(valueField: string): string {
+  const m = valueField.match(/^g(\d+)_/)
+  return m ? `g${m[1]}_note` : `${valueField}_note`
+}
 
 // Backward-compat exports used by dashboard
 export const spiritualGoals = GOALS.map((g) => ({ id: g.id, name: g.name, description: g.subtitle }))

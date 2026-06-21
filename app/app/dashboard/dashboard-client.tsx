@@ -32,6 +32,16 @@ import {
 import type { WeeklyCommitment, WeeklyCommitmentLog } from "@/lib/weekly-commitments"
 import { WeeklyCommitmentsCard } from "@/components/app/dashboard/weekly-commitments-card"
 import type { IntercessionDayRow } from "@/components/app/settings/intercession-editor"
+import {
+  type PrayerScheduleConfig,
+  type PrayerSlotsCompleted,
+  computeLegacyPrayerComplete,
+  enabledSlots,
+  isPrayerDayComplete,
+  normalizePrayerSlotsCompleted,
+  primarySlotSummary,
+  slotDisplayLabel,
+} from "@/lib/prayer-schedule"
 
 interface WeeklyGoalsRow {
   id: string
@@ -54,6 +64,7 @@ interface Props {
   dominionScore: number
   todayLog: {
     prayer_complete?: boolean
+    prayer_slots_completed?: PrayerSlotsCompleted
     declarations_complete?: boolean
     gratitude_complete?: boolean
     sermons_today?: number
@@ -88,6 +99,7 @@ interface Props {
   weeklyCommitmentLogs: WeeklyCommitmentLog[]
   declarationsForPicker: { id: string; text: string }[]
   intercessionSchedule: IntercessionDayRow[] | null
+  prayerSchedule: PrayerScheduleConfig
 }
 
 const GOAL_CODES = ["G1", "G2", "G3", "G4", "G5", "G6", "G7"] as const
@@ -106,6 +118,7 @@ export function DashboardClient({
   weeklyCommitmentLogs,
   declarationsForPicker,
   intercessionSchedule,
+  prayerSchedule,
 }: Props) {
   const router = useRouter()
   const verse = getTodayVerse()
@@ -142,9 +155,35 @@ export function DashboardClient({
     return `${a.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${b.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
   }
 
+  const activePrayerSlots = useMemo(() => enabledSlots(prayerSchedule), [prayerSchedule])
+
+  const initialSlotsCompleted = useMemo(() => {
+    const fromLog = normalizePrayerSlotsCompleted(todayLog?.prayer_slots_completed)
+    if (Object.keys(fromLog).length > 0) return fromLog
+    if (todayLog?.prayer_complete && activePrayerSlots.length === 1) {
+      return { [activePrayerSlots[0].id]: true }
+    }
+    if (todayLog?.prayer_complete && activePrayerSlots.length > 0) {
+      const out: PrayerSlotsCompleted = {}
+      for (const s of activePrayerSlots) out[s.id] = true
+      return out
+    }
+    return fromLog
+  }, [todayLog?.prayer_slots_completed, todayLog?.prayer_complete, activePrayerSlots])
+
+  const [prayerSlotsCompleted, setPrayerSlotsCompleted] = useState<PrayerSlotsCompleted>(initialSlotsCompleted)
+
+  useEffect(() => {
+    setPrayerSlotsCompleted(initialSlotsCompleted)
+  }, [initialSlotsCompleted])
+
+  const prayerDayComplete = useMemo(
+    () => isPrayerDayComplete(prayerSchedule, prayerSlotsCompleted, todayLog?.prayer_complete),
+    [prayerSchedule, prayerSlotsCompleted, todayLog?.prayer_complete]
+  )
+
   const [showDeclarations, setShowDeclarations] = useState(false)
   const [log, setLog] = useState({
-    prayer: todayLog?.prayer_complete ?? false,
     declarations: todayLog?.declarations_complete ?? false,
     gratitude: todayLog?.gratitude_complete ?? false,
     sermons: todayLog?.sermons_today ?? 0,
@@ -239,15 +278,20 @@ export function DashboardClient({
     setShowThisWeekFocusForm(!allThisWeekFocusComplete)
   }, [hasThisWeekFocusTrackers, allThisWeekFocusComplete])
 
-  const saveLog = async (newLog: typeof log) => {
+  const saveLog = async (
+    newLog: typeof log,
+    slotsCompleted: PrayerSlotsCompleted = prayerSlotsCompleted
+  ) => {
     setSaving(true)
     const supabase = createClient()
     const today = localCalendarDateString()
+    const prayerComplete = computeLegacyPrayerComplete(prayerSchedule, slotsCompleted)
 
     const fullData = {
       user_id: userId,
       date: today,
-      prayer_complete: newLog.prayer,
+      prayer_complete: prayerComplete,
+      prayer_slots_completed: slotsCompleted,
       declarations_complete: newLog.declarations,
       gratitude_complete: newLog.gratitude,
       sermons_today: newLog.sermons,
@@ -379,7 +423,7 @@ export function DashboardClient({
           <p className="text-xs text-[#3C1E38]/50">
             {todayPrayerSession?.end_time && todayPrayerSession?.duration_minutes
               ? `${todayPrayerSession.duration_minutes} min today`
-              : "3–5am session"}
+              : primarySlotSummary(prayerSchedule)}
           </p>
           <p className="text-[10px] text-[#3C1E38]/35">Streak: {prayerStreak}/7 this week</p>
         </Link>
@@ -565,7 +609,7 @@ export function DashboardClient({
                 </div>
                 <p className="text-xs text-[#3C1E38]/70">
                   {[
-                    log.prayer && "Prayer ✓",
+                    prayerDayComplete && "Prayer ✓",
                     log.declarations && "Declarations ✓",
                     log.gratitude && "Gratitude ✓",
                     log.sermons > 0 && `${log.sermons} sermon${log.sermons !== 1 ? "s" : ""}`,
@@ -587,14 +631,41 @@ export function DashboardClient({
               </div>
             ) : (
             <div className="space-y-3">
-              {/* Prayer 3-5am */}
-              <button
-                onClick={() => setLog(l => ({ ...l, prayer: !l.prayer }))}
-                className={`flex items-center gap-3 w-full p-3 rounded-lg border text-sm transition-all ${log.prayer ? "bg-emerald-50 border-emerald-200 text-[#3C1E38]" : "border-[#A7C2D7]/10 text-[#3C1E38]/50 hover:border-[#A7C2D7]/30"}`}
-              >
-                {log.prayer ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <Circle className="w-4 h-4 text-[#3C1E38]/30" />}
-                <span>Prayer (3-5am)</span>
-              </button>
+              {/* Prayer watches */}
+              <div className="rounded-lg border border-[#A7C2D7]/10 p-2 space-y-1">
+                <p className="text-xs font-medium text-[#3C1E38]/60 px-1">Prayer watches</p>
+                {activePrayerSlots.map((slot) => {
+                  const done = prayerSlotsCompleted[slot.id] === true
+                  return (
+                    <button
+                      key={slot.id}
+                      type="button"
+                      onClick={() => {
+                        const next = { ...prayerSlotsCompleted, [slot.id]: !done }
+                        setPrayerSlotsCompleted(next)
+                        void saveLog(log, next)
+                      }}
+                      className={`flex items-center gap-3 w-full p-2.5 rounded-lg border text-sm transition-all ${
+                        done
+                          ? "bg-emerald-50 border-emerald-200 text-[#3C1E38]"
+                          : "border-[#A7C2D7]/10 text-[#3C1E38]/50 hover:border-[#A7C2D7]/30"
+                      }`}
+                    >
+                      {done ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                      ) : (
+                        <Circle className="w-4 h-4 text-[#3C1E38]/30 shrink-0" />
+                      )}
+                      <span className="text-left">{slotDisplayLabel(slot)}</span>
+                    </button>
+                  )
+                })}
+                {activePrayerSlots.length === 0 && (
+                  <Link href="/app/settings#prayer-schedule" className="text-xs text-[#A7C2D7] hover:underline px-1">
+                    Set up your prayer watches in Settings
+                  </Link>
+                )}
+              </div>
 
               {/* Declarations Recited */}
               <button

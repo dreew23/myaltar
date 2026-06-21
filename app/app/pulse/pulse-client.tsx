@@ -17,6 +17,7 @@ import { SessionHistory } from "@/components/app/pulse/session-history"
 import type { GoalConfig } from "@/lib/data/dominion"
 import { PHASES, type PhaseId, type PulseSessionRow } from "@/lib/pulse"
 import { parseChecklistMap, toChecklistJson } from "@/lib/pulse-checklists"
+import { normalizePulseCheckRow } from "@/lib/pulse-check-row"
 import { findSessionForWeek, getRecentSundays, toLocalISODate } from "@/lib/pulse-session-dates"
 import {
   currentConsecutiveWeekStreak,
@@ -583,8 +584,10 @@ export function PulseClient(props: PulseClientProps) {
 
   const savePulseCheck = useCallback(
     async (row: Record<string, unknown>): Promise<string | null> => {
+      setPersistError(null)
+      const normalized = normalizePulseCheckRow(row)
       const checkRow = {
-        ...row,
+        ...normalized,
         user_id: props.userId,
         quarter_code: props.quarterCode,
         week_number: props.weekNumber,
@@ -602,7 +605,7 @@ export function PulseClient(props: PulseClientProps) {
       if (pulseCheckId) {
         const { error } = await supabase
           .from("pulse_checks")
-          .update(row)
+          .update(normalized)
           .eq("id", pulseCheckId)
         if (error) {
           console.error("[Pulse] pulse_check update:", error.message)
@@ -622,7 +625,7 @@ export function PulseClient(props: PulseClientProps) {
         .maybeSingle()
 
       if (existing?.id) {
-        const { error } = await supabase.from("pulse_checks").update(row).eq("id", existing.id)
+        const { error } = await supabase.from("pulse_checks").update(normalized).eq("id", existing.id)
         if (error) {
           console.error("[Pulse] pulse_check update:", error.message)
           setPersistError(error.message)
@@ -664,7 +667,7 @@ export function PulseClient(props: PulseClientProps) {
       if (retryExisting?.id) {
         const { error: retryError } = await supabase
           .from("pulse_checks")
-          .update(row)
+          .update(normalized)
           .eq("id", retryExisting.id)
         if (!retryError) return finish(retryExisting.id)
       }

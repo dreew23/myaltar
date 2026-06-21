@@ -16,6 +16,7 @@ import { SectionCard } from "@/components/app/settings/section-card"
 import { PersonalYearConfig } from "@/components/app/settings/personal-year-config"
 import { QuarterConfig } from "@/components/app/settings/quarter-config"
 import { IntercessionEditor } from "@/components/app/settings/intercession-editor"
+import { PrayerScheduleEditor } from "@/components/app/settings/prayer-schedule-editor"
 import { GoalEditor } from "@/components/app/settings/goal-editor"
 import { NotificationsSection } from "@/components/app/settings/notifications-section"
 import { DataManagement } from "@/components/app/settings/data-management"
@@ -24,6 +25,7 @@ import type { PersonalYearConfigRow } from "@/lib/personal-year"
 import type { IntercessionDayRow } from "@/components/app/settings/intercession-editor"
 import type { GoalRow } from "@/components/app/settings/goal-editor"
 import type { NotificationPrefs } from "@/components/app/settings/notifications-section"
+import type { PrayerScheduleConfig } from "@/lib/prayer-schedule"
 
 export interface SettingsProfile {
   id: string
@@ -39,6 +41,7 @@ interface SettingsClientProps {
   personalYears: PersonalYearConfigRow[]
   quarters: QuarterRow[]
   intercessionSchedule: IntercessionDayRow[] | null
+  prayerSchedule: PrayerScheduleConfig | null
   goals: GoalRow[] | null
   notificationPrefs: NotificationPrefs | null
   storageCounts: Record<string, number>
@@ -65,6 +68,7 @@ const FOCUS_AREAS = [
 const SECTIONS = [
   { id: "profile", label: "Profile" },
   { id: "dominion-rhythm", label: "DOMINION Rhythm" },
+  { id: "prayer-schedule", label: "Prayer Watches" },
   { id: "primary-focus", label: "Primary Focus Area" },
   { id: "personal-year-config", label: "Personal Year" },
   { id: "quarter-config", label: "System Calendar" },
@@ -81,6 +85,7 @@ export default function SettingsClient({
   personalYears,
   quarters,
   intercessionSchedule,
+  prayerSchedule,
   goals,
   notificationPrefs,
   storageCounts,
@@ -165,7 +170,7 @@ export default function SettingsClient({
               <div>
                 <CardTitle className="font-playfair text-[#3C1E38]">Install ALTAR on your device</CardTitle>
                 <CardDescription className="text-[#3C1E38]/60">
-                  Use ALTAR from your home screen for quick access at 3am and offline.
+                  Use ALTAR from your home screen for quick access at your prayer watches and offline.
                 </CardDescription>
               </div>
             </div>
@@ -243,6 +248,9 @@ export default function SettingsClient({
             </Select>
           </CardContent>
         </Card>
+
+        {/* 2b. Prayer Watches */}
+        <PrayerScheduleEditor userId={user.id} initialSchedule={prayerSchedule} onSave={() => router.refresh()} />
 
         {/* 3. Primary Focus Area */}
         <Card id="primary-focus" className="border-[#A7C2D7]/20 bg-white">

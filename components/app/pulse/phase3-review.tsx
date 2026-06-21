@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import Link from "next/link"
 import { toast } from "sonner"
 import { Flame, Headphones, Crown, Heart, Scale, Users, Target } from "lucide-react"
-import type { GoalConfig } from "@/lib/data/dominion"
+import { pulseCheckNoteField, type GoalConfig } from "@/lib/data/dominion"
 
 const ICONS: Record<string, typeof Flame> = {
   flame: Flame, headphones: Headphones, crown: Crown, heart: Heart, scale: Scale, users: Users, target: Target,
@@ -54,7 +54,7 @@ export function Phase3Review({
     const initial: Record<string, PulseAnswer> = {}
     for (const g of goals) {
       const v = existingPulseCheck?.[g.dbField]
-      const n = existingPulseCheck?.[`${g.dbField}_note`] as string | undefined
+      const n = existingPulseCheck?.[pulseCheckNoteField(g.dbField)] as string | undefined
       if (g.pulseType === "scale") {
         initial[g.id] = { response: "scale", value: typeof v === "number" ? v : 5, note: n ?? "" }
       } else {
@@ -105,7 +105,7 @@ export function Phase3Review({
             a && "response" in a && a.response !== "scale" ? a.response : ("yes" as const)
           row[goal.dbField] = resp
         }
-        row[`${goal.dbField}_note`] = a?.note || null
+        row[pulseCheckNoteField(goal.dbField)] = a?.note || null
       }
       const id = await onSavePulseCheck(row)
       if (id) {

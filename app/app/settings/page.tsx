@@ -13,6 +13,7 @@ function countFromHead(r: unknown): { count: number } {
   return { count: typeof c === "number" ? c : 0 }
 }
 import { getQuarterProgress } from "@/lib/data/dominion"
+import { normalizePrayerSchedule } from "@/lib/prayer-schedule"
 
 export const metadata = {
   title: "Settings | ALTAR",
@@ -142,6 +143,10 @@ export default async function SettingsPage() {
   const notificationPrefs = (profile as { notification_preferences?: unknown } | null)
     ?.notification_preferences as NotificationPrefs | null
 
+  const prayerSchedule = normalizePrayerSchedule(
+    (profile as { prayer_schedule?: unknown } | null)?.prayer_schedule
+  )
+
   return (
     <SettingsClient
       user={user}
@@ -149,6 +154,7 @@ export default async function SettingsPage() {
       personalYears={(personalYearsRes.data ?? []) as PersonalYearConfigRow[]}
       quarters={quarters}
       intercessionSchedule={intercessionRows}
+      prayerSchedule={prayerSchedule}
       goals={goalRows}
       notificationPrefs={notificationPrefs}
       storageCounts={storageCounts}

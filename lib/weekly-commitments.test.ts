@@ -4,6 +4,7 @@ import {
   COMMITMENT_TYPE_META,
   intercessionThemesForPicker,
   intercessionTitleForDay,
+  weeklyCommitmentInsertPayload,
 } from "./weekly-commitments"
 
 describe("weekly-commitments", () => {
@@ -29,6 +30,34 @@ describe("weekly-commitments", () => {
     expect(themes).toHaveLength(7)
     expect(themes[0]?.dayLabel).toBe("Sunday")
     expect(themes.every((t) => t.theme.length > 0)).toBe(true)
+  })
+
+  it("omits intercession_day_of_week unless intercession type with a day", () => {
+    const bible = weeklyCommitmentInsertPayload({
+      userId: "u1",
+      weekStartStr: "2026-06-01",
+      type: "bible_reading",
+      title: "Read",
+      dailyTarget: 1,
+      unit: "chapters",
+      declarationId: null,
+      intercessionDayOfWeek: null,
+      displayOrder: 0,
+    })
+    expect(bible).not.toHaveProperty("intercession_day_of_week")
+
+    const intercession = weeklyCommitmentInsertPayload({
+      userId: "u1",
+      weekStartStr: "2026-06-01",
+      type: "intercession",
+      title: "Intercession — Family",
+      dailyTarget: 15,
+      unit: "min",
+      declarationId: null,
+      intercessionDayOfWeek: 2,
+      displayOrder: 1,
+    })
+    expect(intercession.intercession_day_of_week).toBe(2)
   })
 
   it("uses user schedule themes when provided", () => {

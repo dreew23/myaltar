@@ -280,6 +280,79 @@ export function logMapByCommitmentAndDate(
   return map
 }
 
+export type WeeklyCommitmentInsertInput = {
+  user_id: string
+  week_start_date: string
+  type: CommitmentType
+  title: string
+  daily_target: number
+  unit: string
+  declaration_id: string | null
+  display_order: number
+  intercession_day_of_week?: number
+}
+
+/** Build Supabase insert row; omits `intercession_day_of_week` unless intercession + day set. */
+export function weeklyCommitmentInsertPayload(args: {
+  userId: string
+  weekStartStr: string
+  type: CommitmentType
+  title: string
+  dailyTarget: number
+  unit: string
+  declarationId: string | null
+  intercessionDayOfWeek: number | null
+  displayOrder: number
+}): WeeklyCommitmentInsertInput {
+  const base: WeeklyCommitmentInsertInput = {
+    user_id: args.userId,
+    week_start_date: args.weekStartStr,
+    type: args.type,
+    title: args.title.trim(),
+    daily_target: args.dailyTarget,
+    unit: args.unit.trim() || COMMITMENT_TYPE_META[args.type].defaultUnit,
+    declaration_id: args.declarationId,
+    display_order: args.displayOrder,
+  }
+  if (
+    args.type === "intercession" &&
+    args.intercessionDayOfWeek !== null &&
+    Number.isFinite(args.intercessionDayOfWeek)
+  ) {
+    base.intercession_day_of_week = args.intercessionDayOfWeek
+  }
+  return base
+}
+
+/** User-facing message for failed weekly_commitments writes. */
+export function weeklyCommitmentSaveErrorMessage(error: {
+  message?: string
+  code?: string
+  details?: string
+}): string {
+  const msg = [error.message, error.details].filter(Boolean).join(" ")
+  if (
+    msg.includes("weekly_commitments_type_check") ||
+    error.code === "23514" ||
+    msg.includes("violates check constraint")
+  ) {
+    return (
+      "This commitment type is not enabled in your database yet. In Supabase, run migration " +
+      "20250421_weekly_commitments_expand_types.sql — or choose a legacy type (Worship, Scripture, Prayer, Custom)."
+    )
+  }
+  if (msg.includes("intercession_day_of_week") || error.code === "PGRST204") {
+    return (
+      "Your database is missing the intercession column. Run migration " +
+      "20250421_weekly_commitments_expand_types.sql in the Supabase SQL editor."
+    )
+  }
+  if (error.code === "42501" || msg.toLowerCase().includes("row-level security")) {
+    return "You do not have permission to save commitments. Try signing out and back in."
+  }
+  return msg || "Could not save commitment. Please try again."
+}
+
 /** Count how many of the 7 days for this commitment hit the daily target. */
 export function daysHitTarget(
   commitmentId: string,

@@ -5,6 +5,7 @@
 
 import { getTodayIntercession } from "./dominion"
 import { GOALS, type GoalConfig } from "./dominion"
+import { normalizePrayerSchedule, type PrayerScheduleConfig } from "@/lib/prayer-schedule"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 export type TodayIntercession = { theme: string; focus: string[] }
@@ -98,4 +99,17 @@ export async function getGoalsForUser(
     // Table may not exist
   }
   return GOALS
+}
+
+/** User prayer watches / custom times from profiles.prayer_schedule. */
+export async function getPrayerScheduleForUser(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<PrayerScheduleConfig> {
+  try {
+    const { data } = await supabase.from("profiles").select("prayer_schedule").eq("id", userId).maybeSingle()
+    return normalizePrayerSchedule(data?.prayer_schedule)
+  } catch {
+    return normalizePrayerSchedule(null)
+  }
 }
