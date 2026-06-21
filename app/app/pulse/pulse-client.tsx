@@ -358,15 +358,6 @@ export function PulseClient(props: PulseClientProps) {
     [session, persistSessionQuiet]
   )
 
-  const isReviewPulseCheckReady = useCallback(() => {
-    return Boolean(
-      savedPulseCheckIdRef.current ||
-        session?.phase3_pulse_check_id ||
-        savedPulseCheckId ||
-        props.thisWeekPulseCheck
-    )
-  }, [session?.phase3_pulse_check_id, savedPulseCheckId, props.thisWeekPulseCheck])
-
   useEffect(() => {
     if (!session?.id) return
     const t = setTimeout(() => {
@@ -494,14 +485,7 @@ export function PulseClient(props: PulseClientProps) {
     async (phaseId: PhaseId) => {
       if (!session || phaseSaving) return
       if (phaseId === "review") {
-        setPhaseSaving(true)
-        await phase3SaveRef.current?.()
-        setPhaseSaving(false)
-        if (!isReviewPulseCheckReady()) {
-          toast.warning(
-            "Pulse check could not be saved to the database. Continuing to the next phase — if this keeps happening, run the pulse_checks migration in Supabase."
-          )
-        }
+        void phase3SaveRef.current?.()
       }
       setPhaseSaving(true)
       const next = [...new Set([...(session.phases_completed ?? []), phaseId])]
@@ -528,10 +512,23 @@ export function PulseClient(props: PulseClientProps) {
           session_quality: sessionQuality,
           phase6_close_checklist: toChecklistJson(phase6ClosingChecklist),
         })
-      if (ok) {
+      if (!ok && phaseId === "review") {
+        ok = await persistSessionQuiet({ phases_completed: next })
+      }
+      const advanceUi = () => {
         setSession((p) => (p ? { ...p, phases_completed: next } : null))
         const nextExpanded = PHASE_IDS.find((id) => !next.includes(id) && !skippedPhases.has(id))
         setExpandedPhase(nextExpanded ?? null)
+      }
+      if (ok) {
+        advanceUi()
+      } else if (phaseId === "review") {
+        advanceUi()
+        toast.warning(
+          "Moved to the next phase. Pulse data may not have synced — run 20250423_pulse_checks_rls.sql in Supabase if Save Pulse Check keeps failing."
+        )
+      } else {
+        toast.error("Could not save phase progress. Please try again.")
       }
       setPhaseSaving(false)
     },
@@ -539,6 +536,7 @@ export function PulseClient(props: PulseClientProps) {
       session,
       phaseSaving,
       updateSession,
+      persistSessionQuiet,
       nextWeekFocus,
       mondayTop3,
       sessionQuality,
@@ -548,7 +546,6 @@ export function PulseClient(props: PulseClientProps) {
       phase6ClosingChecklist,
       props.thisWeekPulseCheck,
       savedPulseCheckId,
-      isReviewPulseCheckReady,
     ]
   )
 
