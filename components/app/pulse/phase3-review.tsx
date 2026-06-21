@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import Link from "next/link"
+import { toast } from "sonner"
 import { Flame, Headphones, Crown, Heart, Scale, Users, Target } from "lucide-react"
 import type { GoalConfig } from "@/lib/data/dominion"
 
@@ -31,6 +32,8 @@ interface Phase3ReviewProps {
   /** Calendar date for this pulse session (pulse_checks.date). */
   pulseCheckDate: string
   onSavePulseCheck: (data: Record<string, unknown>) => Promise<string | null>
+  /** Parent uses this to flush Phase 3 save before marking complete. */
+  onRegisterSave?: (saveNow: () => Promise<string | null>) => void
   /** Personal + calendar rhythm (UI only; storage still uses calendar quarter_code / week_number). */
   dualContextLine?: string
 }
@@ -44,6 +47,7 @@ export function Phase3Review({
   weekNumber,
   pulseCheckDate,
   onSavePulseCheck,
+  onRegisterSave,
   dualContextLine,
 }: Phase3ReviewProps) {
   const [answers, setAnswers] = useState<Record<string, PulseAnswer>>(() => {
@@ -62,7 +66,15 @@ export function Phase3Review({
   const [overallReflection, setOverallReflection] = useState((existingPulseCheck?.overall_reflection as string) ?? "")
   const [dominionScore, setDominionScore] = useState(typeof existingPulseCheck?.g3_dominion === "number" ? existingPulseCheck.g3_dominion : 5)
   const [saving, setSaving] = useState(false)
-  const [savedId, setSavedId] = useState<string | null>(null)
+  const [savedId, setSavedId] = useState<string | null>(() =>
+    typeof existingPulseCheck?.id === "string" ? existingPulseCheck.id : null
+  )
+
+  useEffect(() => {
+    if (typeof existingPulseCheck?.id === "string") {
+      setSavedId(existingPulseCheck.id)
+    }
+  }, [existingPulseCheck?.id])
 
   const dataHints: Record<string, string> = {
     G1: `This week: ${weekStats.prayerDays}/7 days prayed`,
@@ -75,7 +87,7 @@ export function Phase3Review({
   }
 
   const handleSave = useCallback(
-    async (opts?: { silent?: boolean }) => {
+    async (opts?: { silent?: boolean }): Promise<string | null> => {
       if (!opts?.silent) setSaving(true)
       const row: Record<string, unknown> = {
         week_number: weekNumber,
@@ -87,15 +99,23 @@ export function Phase3Review({
       for (const goal of goals) {
         const a = answers[goal.id]
         if (goal.pulseType === "scale") {
-          row[goal.dbField] = a && "value" in a ? a.value : null
+          row[goal.dbField] = a && "value" in a ? a.value : dominionScore
         } else {
-          row[goal.dbField] = a && "response" in a ? a.response : null
+          const resp =
+            a && "response" in a && a.response !== "scale" ? a.response : ("yes" as const)
+          row[goal.dbField] = resp
         }
         row[`${goal.dbField}_note`] = a?.note || null
       }
       const id = await onSavePulseCheck(row)
-      if (id) setSavedId(id)
+      if (id) {
+        setSavedId(id)
+        if (!opts?.silent) toast.success("Pulse check saved")
+      } else if (!opts?.silent) {
+        toast.error("Could not save pulse check. Check the banner above for details.")
+      }
       if (!opts?.silent) setSaving(false)
+      return id
     },
     [answers, overallReflection, dominionScore, goals, weekNumber, pulseCheckDate, quarterCode, onSavePulseCheck]
   )
@@ -103,6 +123,10 @@ export function Phase3Review({
   const saveRef = useRef(handleSave)
   saveRef.current = handleSave
   const skipAutoSaveAfterMount = useRef(true)
+
+  useEffect(() => {
+    onRegisterSave?.(async () => saveRef.current({ silent: true }))
+  }, [onRegisterSave])
 
   useEffect(() => {
     if (skipAutoSaveAfterMount.current) {

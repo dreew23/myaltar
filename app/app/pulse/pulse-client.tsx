@@ -131,6 +131,12 @@ function sessionToState(s: PulseSessionRow | null): SessionState | null {
   }
 }
 
+function pulseCheckIdFromProps(props: PulseClientProps): string | null {
+  const fromCheck = props.thisWeekPulseCheck?.id
+  if (typeof fromCheck === "string") return fromCheck
+  return props.todaySession?.phase3_pulse_check_id ?? null
+}
+
 export function PulseClient(props: PulseClientProps) {
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
@@ -160,6 +166,9 @@ export function PulseClient(props: PulseClientProps) {
   const [beginningSession, setBeginningSession] = useState(false)
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null)
   const [persistError, setPersistError] = useState<string | null>(null)
+  const [savedPulseCheckId, setSavedPulseCheckId] = useState<string | null>(() =>
+    pulseCheckIdFromProps(props)
+  )
   const [completeActionError, setCompleteActionError] = useState<string | null>(null)
   const [completeActionWarning, setCompleteActionWarning] = useState<string | null>(null)
   const skipPlanPersist = useRef(true)
@@ -170,6 +179,16 @@ export function PulseClient(props: PulseClientProps) {
   >(new Map())
   const dailyFocusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const dailyFocusSavingRef = useRef(false)
+  const savedPulseCheckIdRef = useRef<string | null>(pulseCheckIdFromProps(props))
+  const phase3SaveRef = useRef<(() => Promise<string | null>) | null>(null)
+
+  useEffect(() => {
+    const linked = pulseCheckIdFromProps(props)
+    if (linked) {
+      savedPulseCheckIdRef.current = linked
+      setSavedPulseCheckId(linked)
+    }
+  }, [props.thisWeekPulseCheck, props.todaySession?.phase3_pulse_check_id])
 
   const resetPhaseLocalState = useCallback(() => {
     setExpandedPhase(PHASE_IDS[0] ?? null)
@@ -328,6 +347,26 @@ export function PulseClient(props: PulseClientProps) {
     [session, supabase]
   )
 
+  const notePulseCheckSaved = useCallback(
+    async (pulseCheckId: string) => {
+      savedPulseCheckIdRef.current = pulseCheckId
+      setSavedPulseCheckId(pulseCheckId)
+      setSession((p) => (p ? { ...p, phase3_pulse_check_id: pulseCheckId } : null))
+      if (!session) return true
+      return persistSessionQuiet({ phase3_pulse_check_id: pulseCheckId })
+    },
+    [session, persistSessionQuiet]
+  )
+
+  const isReviewPulseCheckReady = useCallback(() => {
+    return Boolean(
+      savedPulseCheckIdRef.current ||
+        session?.phase3_pulse_check_id ||
+        savedPulseCheckId ||
+        props.thisWeekPulseCheck
+    )
+  }, [session?.phase3_pulse_check_id, savedPulseCheckId, props.thisWeekPulseCheck])
+
   useEffect(() => {
     if (!session?.id) return
     const t = setTimeout(() => {
@@ -454,9 +493,17 @@ export function PulseClient(props: PulseClientProps) {
   const markPhaseComplete = useCallback(
     async (phaseId: PhaseId) => {
       if (!session || phaseSaving) return
-      if (phaseId === "review" && !session.phase3_pulse_check_id && !props.thisWeekPulseCheck) {
-        toast.error("Save your pulse check before completing this phase.")
-        return
+      if (phaseId === "review" && !isReviewPulseCheckReady()) {
+        setPhaseSaving(true)
+        const id = (await phase3SaveRef.current?.()) ?? null
+        if (!id && !isReviewPulseCheckReady()) {
+          setPhaseSaving(false)
+          toast.error(
+            "Could not save your pulse check. Tap Save Pulse Check first, or check the error banner above."
+          )
+          return
+        }
+        setPhaseSaving(false)
       }
       setPhaseSaving(true)
       const next = [...new Set([...(session.phases_completed ?? []), phaseId])]
@@ -502,6 +549,8 @@ export function PulseClient(props: PulseClientProps) {
       phase1Checklist,
       phase6ClosingChecklist,
       props.thisWeekPulseCheck,
+      savedPulseCheckId,
+      isReviewPulseCheckReady,
     ]
   )
 
@@ -546,19 +595,27 @@ export function PulseClient(props: PulseClientProps) {
         week_number: props.weekNumber,
       }
 
-      if (session?.phase3_pulse_check_id) {
+      const finish = async (id: string) => {
+        await notePulseCheckSaved(id)
+        setLastSavedAt(Date.now())
+        return id
+      }
+
+      const pulseCheckId =
+        session?.phase3_pulse_check_id ?? savedPulseCheckId ?? null
+
+      if (pulseCheckId) {
         const { error } = await supabase
           .from("pulse_checks")
           .update(row)
-          .eq("id", session.phase3_pulse_check_id)
+          .eq("id", pulseCheckId)
         if (error) {
           console.error("[Pulse] pulse_check update:", error.message)
           setPersistError(error.message)
+          toast.error(`Could not save pulse check: ${error.message}`)
           return null
         }
-        setLastSavedAt(Date.now())
-        router.refresh()
-        return session.phase3_pulse_check_id
+        return finish(pulseCheckId)
       }
 
       const { data: existing } = await supabase
@@ -574,28 +631,66 @@ export function PulseClient(props: PulseClientProps) {
         if (error) {
           console.error("[Pulse] pulse_check update:", error.message)
           setPersistError(error.message)
+          toast.error(`Could not save pulse check: ${error.message}`)
           return null
         }
-        if (session) await updateSession({ phase3_pulse_check_id: existing.id })
-        setLastSavedAt(Date.now())
-        router.refresh()
-        return existing.id
+        return finish(existing.id)
       }
 
       const { data, error } = await supabase
         .from("pulse_checks")
         .upsert(checkRow, { onConflict: "user_id,quarter_code,week_number" })
         .select("id")
-        .single()
-      if (error || !data) {
-        setPersistError(error?.message ?? "Could not save pulse check")
-        return null
+        .maybeSingle()
+
+      if (!error && data?.id) {
+        return finish(data.id as string)
       }
-      if (session) await updateSession({ phase3_pulse_check_id: data.id })
-      setLastSavedAt(Date.now())
-      return data.id
+
+      // Fallback: insert then update on unique violation (older DBs / RLS quirks).
+      const { data: inserted, error: insertError } = await supabase
+        .from("pulse_checks")
+        .insert(checkRow)
+        .select("id")
+        .maybeSingle()
+
+      if (!insertError && inserted?.id) {
+        return finish(inserted.id as string)
+      }
+
+      const { data: retryExisting } = await supabase
+        .from("pulse_checks")
+        .select("id")
+        .eq("user_id", props.userId)
+        .eq("quarter_code", props.quarterCode)
+        .eq("week_number", props.weekNumber)
+        .maybeSingle()
+
+      if (retryExisting?.id) {
+        const { error: retryError } = await supabase
+          .from("pulse_checks")
+          .update(row)
+          .eq("id", retryExisting.id)
+        if (!retryError) return finish(retryExisting.id)
+      }
+
+      const msg =
+        error?.message ??
+        insertError?.message ??
+        "Could not save pulse check"
+      setPersistError(msg)
+      toast.error(msg)
+      return null
     },
-    [props.userId, props.quarterCode, props.weekNumber, session, updateSession, supabase, router]
+    [
+      props.userId,
+      props.quarterCode,
+      props.weekNumber,
+      session?.phase3_pulse_check_id,
+      savedPulseCheckId,
+      notePulseCheckSaved,
+      supabase,
+    ]
   )
 
   const saveDailyFocusInternal = useCallback(
@@ -1003,6 +1098,9 @@ export function PulseClient(props: PulseClientProps) {
                   weekNumber={props.weekNumber}
                   pulseCheckDate={props.sessionDateStr}
                   onSavePulseCheck={savePulseCheck}
+                  onRegisterSave={(saveNow) => {
+                    phase3SaveRef.current = saveNow
+                  }}
                   dualContextLine={dualContextLine}
                 />
               )}
