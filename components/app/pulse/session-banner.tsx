@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { CalendarCheck, Heart } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -30,14 +31,29 @@ export function SessionBanner({
   onBegin,
   beginningSession = false,
 }: SessionBannerProps) {
-  const nextSunday = (() => {
+  /** Avoid hydration mismatch: server and client render `new Date()` at different instants. */
+  const [timeLabel, setTimeLabel] = useState<string | null>(null)
+  const [nextSunday, setNextSunday] = useState<string>("")
+
+  useEffect(() => {
+    const formatTime = () =>
+      new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+    setTimeLabel(formatTime())
+    const tick = setInterval(() => setTimeLabel(formatTime()), 60_000)
+
     const d = new Date()
     const day = d.getDay()
     const add = day === 0 ? 7 : 7 - day
     const next = new Date(d)
     next.setDate(d.getDate() + add)
-    return next.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })
-  })()
+    setNextSunday(next.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" }))
+
+    return () => clearInterval(tick)
+  }, [])
+
+  const contextSuffix = dualContextLine
+    ? dualContextLine
+    : `Week ${weekNumber} of 13 — ${quarterName}`
 
   if (isSunday) {
     return (
@@ -50,15 +66,8 @@ export function SessionBanner({
             </h1>
             <p className="text-[#3C1E38]/70 mt-1">Your weekly rhythm of review, reflection, and planning</p>
             <p className="text-sm text-[#3C1E38]/60 mt-2">
-              {dualContextLine ? (
-                <>
-                  {new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} · {dualContextLine}
-                </>
-              ) : (
-                <>
-                  {new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} · Week {weekNumber} of 13 — {quarterName}
-                </>
-              )}
+              {timeLabel ? `${timeLabel} · ` : null}
+              {contextSuffix}
             </p>
             <Link
               href="/app/prayer"
@@ -104,7 +113,9 @@ export function SessionBanner({
             <CalendarCheck className="w-6 h-6 text-[#3C1E38]/70" />
             Your Sunday planning session
           </h1>
-          <p className="text-[#3C1E38]/60 mt-1">Next session: {nextSunday} at 2pm</p>
+          <p className="text-[#3C1E38]/60 mt-1">
+            Next session: {nextSunday || "—"} at 2pm
+          </p>
           <p className="text-sm text-[#3C1E38]/50 mt-1">
             {dualContextLine ?? `Week ${weekNumber} of 13 — ${quarterName}`}
           </p>

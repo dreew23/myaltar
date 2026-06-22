@@ -19,13 +19,15 @@ function session(date: string, completed = true): PulseSessionRow {
     phase4_time_analysis: null,
     phase4_constraint_changes: null,
     phase4_declaration_reviewed: null,
+    phase5_weekly_plan_notes: null,
     phase5_next_week_focus: [],
     phase6_monday_top3: [],
+    overall_session_notes: null,
     session_quality: null,
     total_duration_minutes: null,
     created_at: `${date}T14:00:00Z`,
     updated_at: `${date}T16:00:00Z`,
-  } as PulseSessionRow
+  }
 }
 
 /** A session date in the planning week that ended `weeksAgo` Sundays before the current week. */
