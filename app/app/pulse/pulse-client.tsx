@@ -43,7 +43,16 @@ import {
   formatCalendarQuarterEndingLine,
   getCalendarQuarterProgress,
   getPersonalYearProgress,
+  type CalendarLens,
 } from "@/lib/personal-year"
+import {
+  buildQuarterWeekHistoryRows,
+  countCompletedSessionsForQuarter,
+  type ArchivableQuarter,
+  type BackfillCandidate,
+  type QuarterConfigRow,
+  type QuarterSource,
+} from "@/lib/quarter-context"
 
 type SessionState = {
   id: string
@@ -105,8 +114,19 @@ interface PulseClientProps {
   quarter: { weekInQuarter: number; phaseName: string }
   weekNumber: number
   quarterCode: string
+  quarterName: string
+  quarterSource: QuarterSource
+  primaryCalendarLens: CalendarLens
+  quarterIsComplete: boolean
+  quarterStartDate: string
+  quarterEndDate: string
   sevenDaysAgoStr: string
   personalYears: PersonalYearConfigRow[]
+  quarterConfigRows: QuarterConfigRow[]
+  activeQuarter: QuarterConfigRow | null
+  archivableQuarters: ArchivableQuarter[]
+  allPulseChecks: Record<string, unknown>[]
+  backfillCandidate: BackfillCandidate | null
 }
 
 function sessionToState(s: PulseSessionRow | null): SessionState | null {
@@ -172,6 +192,8 @@ export function PulseClient(props: PulseClientProps) {
   )
   const [completeActionError, setCompleteActionError] = useState<string | null>(null)
   const [completeActionWarning, setCompleteActionWarning] = useState<string | null>(null)
+  const [backfilling, setBackfilling] = useState(false)
+  const [backfillDismissed, setBackfillDismissed] = useState(false)
   const skipPlanPersist = useRef(true)
   /** Only hydrate phase fields from server when switching sessions — refresh() was wiping in-progress edits. */
   const hydratedSessionIdRef = useRef<string | null>(null)
@@ -190,6 +212,44 @@ export function PulseClient(props: PulseClientProps) {
       setSavedPulseCheckId(linked)
     }
   }, [props.thisWeekPulseCheck, props.todaySession?.phase3_pulse_check_id])
+
+  useEffect(() => {
+    if (!props.backfillCandidate) {
+      setBackfillDismissed(false)
+      return
+    }
+    const key = `altar-pulse-backfill-${props.userId}`
+    setBackfillDismissed(localStorage.getItem(key) === props.backfillCandidate.oldCode)
+  }, [props.backfillCandidate, props.userId])
+
+  const runBackfill = useCallback(async () => {
+    const candidate = props.backfillCandidate
+    if (!candidate) return
+    setBackfilling(true)
+    const { error: sessionError } = await supabase
+      .from("pulse_sessions")
+      .update({ quarter_code: candidate.newCode })
+      .eq("user_id", props.userId)
+      .eq("quarter_code", candidate.oldCode)
+      .gte("date", candidate.startDate)
+      .lte("date", candidate.endDate)
+    const { error: checkError } = await supabase
+      .from("pulse_checks")
+      .update({ quarter_code: candidate.newCode })
+      .eq("user_id", props.userId)
+      .eq("quarter_code", candidate.oldCode)
+      .gte("date", candidate.startDate)
+      .lte("date", candidate.endDate)
+    setBackfilling(false)
+    if (sessionError || checkError) {
+      toast.error(`Could not link past sessions — ${sessionError?.message ?? checkError?.message}`)
+      return
+    }
+    localStorage.setItem(`altar-pulse-backfill-${props.userId}`, candidate.oldCode)
+    setBackfillDismissed(true)
+    toast.success(`Linked ${candidate.sessionCount} sessions to ${candidate.quarterName}`)
+    router.refresh()
+  }, [props.backfillCandidate, props.userId, supabase, router])
 
   const resetPhaseLocalState = useCallback(() => {
     setExpandedPhase(PHASE_IDS[0] ?? null)
@@ -899,6 +959,22 @@ export function PulseClient(props: PulseClientProps) {
     () => formatDualPulseContextLine(personalProgress, calendarForSession),
     [personalProgress, calendarForSession]
   )
+  /**
+   * Two clearly-labeled lines for the banner. The "system" line uses the actual pulse
+   * quarter context (quarter_config-aware, matching stored quarter_code/week_number);
+   * the "personal" line uses the personal-year overlay. The toggle only reorders them.
+   */
+  const bannerLines = useMemo(() => {
+    const systemLine = `Calendar: ${props.quarterName} — Week ${props.weekNumber} of 13`
+    const personalLine = personalProgress
+      ? `Personal: Year ${personalProgress.yearNumber}: ${personalProgress.yearName} — Week ${personalProgress.weekNumber} of 13`
+      : null
+    const primaryIsPersonal = props.primaryCalendarLens === "personal" && !!personalLine
+    return {
+      primary: primaryIsPersonal ? personalLine! : systemLine,
+      secondary: primaryIsPersonal ? systemLine : personalLine,
+    }
+  }, [props.primaryCalendarLens, props.quarterName, props.weekNumber, personalProgress])
   const phase5PersonalLine = personalProgress
     ? `Personal year ${personalProgress.progress}% complete (Week ${personalProgress.weekNumber} of 13)`
     : undefined
@@ -942,15 +1018,38 @@ export function PulseClient(props: PulseClientProps) {
   const longestStreak = useMemo(() => longestConsecutiveWeekStreak(sessionsForStreak), [sessionsForStreak])
 
   const quarterSundays = 13
-  const quarterSessionCount = useMemo(() => {
-    const qc = props.quarterCode
-    return (
-      props.pastSessions.filter((s) => s.completed_at && s.quarter_code === qc).length +
-      (props.todaySession?.completed_at && props.todaySession.quarter_code === qc ? 1 : 0)
-    )
-  }, [props.pastSessions, props.quarterCode, props.todaySession])
+  const quarterSessionCount = useMemo(
+    () =>
+      countCompletedSessionsForQuarter(
+        props.quarterCode,
+        props.pastSessions,
+        props.todaySession,
+      ),
+    [props.pastSessions, props.quarterCode, props.todaySession],
+  )
+
+  const allSessionsForHistory = useMemo(
+    () =>
+      mergeCompletedPulseSessionsForStreak(
+        props.sessionsForWeekMatching,
+        props.pastSessions,
+        session,
+        props.todaySession,
+      ),
+    [props.sessionsForWeekMatching, props.pastSessions, session, props.todaySession],
+  )
 
   const weekHistoryRows = useMemo(() => {
+    const activeQuarterEntry = props.archivableQuarters.find((q) => q.isActive)
+    if (activeQuarterEntry && props.quarterSource === "quarter_config") {
+      return buildQuarterWeekHistoryRows(
+        activeQuarterEntry,
+        allSessionsForHistory,
+        props.calendarTodayStr,
+        props.quarterCode,
+      )
+    }
+
     const sundays = getRecentSundays(13)
     const calendarToday = new Date(props.calendarTodayStr + "T12:00:00")
     const lastSunday = new Date(calendarToday)
@@ -970,7 +1069,14 @@ export function PulseClient(props: PulseClientProps) {
         isCurrentWeek: sun === currentSundayStr,
       }
     })
-  }, [props.sessionsForWeekMatching, props.calendarTodayStr])
+  }, [
+    props.archivableQuarters,
+    props.quarterSource,
+    allSessionsForHistory,
+    props.calendarTodayStr,
+    props.quarterCode,
+    props.sessionsForWeekMatching,
+  ])
 
   const showPhases = Boolean(session && (mode === "edit" || !session.completed_at))
   const sessionDayLabel = new Date(props.sessionDateStr + "T12:00:00").toLocaleDateString("en-US", {
@@ -978,6 +1084,14 @@ export function PulseClient(props: PulseClientProps) {
     day: "numeric",
     year: "numeric",
   })
+
+  const showQuarterCompleteCard =
+    mode === "create" &&
+    props.quarterSource === "quarter_config" &&
+    props.quarterIsComplete &&
+    (Boolean(session?.completed_at) || quarterSessionCount >= 13)
+
+  const showBackfillPrompt = props.backfillCandidate && !backfillDismissed
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -1004,14 +1118,68 @@ export function PulseClient(props: PulseClientProps) {
         <SessionBanner
           isSunday={isSunday}
           weekNumber={props.quarter.weekInQuarter}
-          quarterName={props.quarter.phaseName}
-          dualContextLine={dualContextLine}
+          quarterName={props.quarterName}
+          primaryLine={bannerLines.primary}
+          secondaryLine={bannerLines.secondary}
           hasSession={!!session}
           sessionComplete={!!session?.completed_at}
           sessionQuality={session?.session_quality ?? null}
           onBegin={beginSession}
           beginningSession={beginningSession}
         />
+      )}
+
+      {showBackfillPrompt && props.backfillCandidate && (
+        <div className="rounded-xl border border-[#A7C2D7]/30 bg-[#A7C2D7]/10 px-4 py-4 space-y-3">
+          <p className="font-medium text-[#3C1E38]">
+            Link past sessions to {props.backfillCandidate.quarterName}?
+          </p>
+          <p className="text-sm text-[#3C1E38]/70">
+            {props.backfillCandidate.sessionCount} session
+            {props.backfillCandidate.sessionCount === 1 ? "" : "s"} stored under{" "}
+            <span className="font-mono text-xs">{props.backfillCandidate.oldCode}</span> fall within your active
+            quarter dates. Linking groups them in the archive — nothing is deleted.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void runBackfill()}
+              disabled={backfilling}
+              className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-[#F9D57E] text-[#3C1E38] font-medium text-sm hover:bg-[#F9D57E]/90"
+            >
+              {backfilling ? "Linking…" : "Link sessions"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                localStorage.setItem(
+                  `altar-pulse-backfill-${props.userId}`,
+                  props.backfillCandidate!.oldCode,
+                )
+                setBackfillDismissed(true)
+              }}
+              className="inline-flex items-center justify-center px-4 py-2 rounded-lg border border-[#A7C2D7]/40 text-sm font-medium text-[#3C1E38] hover:bg-white/60"
+            >
+              Not now
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showQuarterCompleteCard && (
+        <div className="rounded-2xl border border-[#F9D57E]/50 bg-gradient-to-r from-[#F9D57E]/25 to-[#F9D57E]/10 p-6 space-y-3">
+          <p className="font-playfair text-xl font-bold text-[#3C1E38]">Quarter complete — 13/13 weeks stewarded</p>
+          <p className="text-sm text-[#3C1E38]/70">
+            Your sessions and pulse checks are saved in Past Quarters. Start a new 13-week quarter to begin again at
+            Week 1.
+          </p>
+          <Link
+            href="/app/settings#quarter-config"
+            className="inline-flex items-center justify-center px-5 py-2.5 rounded-lg bg-[#3C1E38] text-[#F9D57E] font-medium text-sm hover:bg-[#3C1E38]/90"
+          >
+            Start new quarter
+          </Link>
+        </div>
       )}
 
       {persistError && (
@@ -1169,6 +1337,11 @@ export function PulseClient(props: PulseClientProps) {
         longestStreak={longestStreak}
         quarterSessionCount={quarterSessionCount}
         quarterTotalSundays={quarterSundays}
+        archivableQuarters={props.archivableQuarters}
+        activeQuarterCode={props.quarterCode}
+        allSessions={allSessionsForHistory}
+        allPulseChecks={props.allPulseChecks}
+        calendarTodayStr={props.calendarTodayStr}
       />
     </div>
   )

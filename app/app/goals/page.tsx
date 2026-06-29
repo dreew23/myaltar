@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { localCalendarDateString } from "@/lib/prayer-week"
-import { getGoalsForUser } from "@/lib/data/user-config"
+import { getGoalsForUser, getPrimaryCalendarLens } from "@/lib/data/user-config"
 import type { PersonalYearConfigRow } from "@/lib/personal-year"
+import { resolvePulseQuarterContext, type QuarterConfigRow } from "@/lib/quarter-context"
 import { GoalsClient, type PulseCheck, type GoalNote, type Devotion } from "./goals-client"
-import { getQuarterProgress } from "@/lib/data/dominion"
 
 export const metadata = { title: "Spiritual Goals | ALTAR" }
 
@@ -14,17 +14,30 @@ export default async function GoalsPage() {
   if (!user) redirect("/login")
 
   const goals = await getGoalsForUser(supabase, user.id)
+  const primaryCalendarLens = await getPrimaryCalendarLens(supabase, user.id)
 
   const now = new Date()
-  const quarter = Math.floor(now.getMonth() / 3) + 1
-  const quarterCode = `${now.getFullYear()}-Q${quarter}`
-  const quarterStart = new Date(now.getFullYear(), (quarter - 1) * 3, 1)
-  const quarterEnd = new Date(now.getFullYear(), quarter * 3, 0)
-  const quarterStartStr = localCalendarDateString(quarterStart)
-  const quarterEndStr = localCalendarDateString(quarterEnd)
+  const todayStr = localCalendarDateString(now)
+
+  let quarterConfigRows: QuarterConfigRow[] = []
+  try {
+    const { data: qRows } = await supabase
+      .from("quarter_config")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("start_date", { ascending: false })
+    quarterConfigRows = (qRows ?? []) as QuarterConfigRow[]
+  } catch {
+    quarterConfigRows = []
+  }
+
+  const activeQuarter = quarterConfigRows.find((q) => q.is_active) ?? null
+  const quarterCtx = resolvePulseQuarterContext(todayStr, activeQuarter, quarterConfigRows)
+  const quarterCode = quarterCtx.quarterCode
+  const quarterStartStr = quarterCtx.startDate
+  const quarterEndStr = quarterCtx.endDate
 
   const yearStartStr = `${now.getFullYear()}-01-01`
-  const todayStr = localCalendarDateString(now)
 
   let pulseChecksRes = { data: [] as PulseCheck[] }
   let goalNotesRes = { data: [] as GoalNote[] }
@@ -58,8 +71,7 @@ export default async function GoalsPage() {
       .from("pulse_checks")
       .select("*")
       .eq("user_id", user.id)
-      .gte("date", quarterStartStr)
-      .lte("date", quarterEndStr)
+      .eq("quarter_code", quarterCode)
       .order("date", { ascending: true }),
     supabase.from("goal_notes").select("*").eq("user_id", user.id),
     supabase
@@ -142,7 +154,13 @@ export default async function GoalsPage() {
     console.error("[goals] Fetch error:", e)
   }
 
-  const quarterConfig = getQuarterProgress()
+  const quarterConfig = {
+    year: (activeQuarter?.year_number ?? (now.getMonth() < 6 ? 1 : 2)) as 1 | 2,
+    quarter: (Math.floor(now.getMonth() / 3) + 1) as 1 | 2 | 3 | 4,
+    weekInQuarter: quarterCtx.weekNumber,
+    totalWeeks: 13 as const,
+    phaseName: quarterCtx.quarterName,
+  }
   const pulseChecks = pulseChecksRes.data ?? []
   const goalNotes = goalNotesRes.data ?? []
   const devotions = devotionsRes.data ?? []
@@ -176,6 +194,7 @@ export default async function GoalsPage() {
       pulseConsistency={{ completed: pulseConsistencyNum, total: pulseConsistencyDenom }}
       yearFruits={yearFruits}
       userId={user.id}
+      primaryCalendarLens={primaryCalendarLens}
     />
   )
 }

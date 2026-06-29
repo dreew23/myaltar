@@ -10,8 +10,10 @@ interface SessionBannerProps {
   isSunday: boolean
   weekNumber: number
   quarterName: string
-  /** When set, replaces the single “Week … — phase” line with dual personal + calendar context. */
-  dualContextLine?: string
+  /** Primary lens line (per the user's Settings toggle), e.g. "Personal: Year 3 … — Week 11 of 13". */
+  primaryLine?: string
+  /** Secondary lens line shown beneath the primary one, when both systems are available. */
+  secondaryLine?: string | null
   hasSession: boolean
   sessionComplete: boolean
   /** 1–5 from Phase 6; shown when the session is complete. */
@@ -24,7 +26,8 @@ export function SessionBanner({
   isSunday,
   weekNumber,
   quarterName,
-  dualContextLine,
+  primaryLine,
+  secondaryLine,
   hasSession,
   sessionComplete,
   sessionQuality = null,
@@ -51,9 +54,7 @@ export function SessionBanner({
     return () => clearInterval(tick)
   }, [])
 
-  const contextSuffix = dualContextLine
-    ? dualContextLine
-    : `Week ${weekNumber} of 13 — ${quarterName}`
+  const primaryContext = primaryLine ?? `Week ${weekNumber} of 13 — ${quarterName}`
 
   if (isSunday) {
     return (
@@ -67,8 +68,11 @@ export function SessionBanner({
             <p className="text-[#3C1E38]/70 mt-1">Your weekly rhythm of review, reflection, and planning</p>
             <p className="text-sm text-[#3C1E38]/60 mt-2">
               {timeLabel ? `${timeLabel} · ` : null}
-              {contextSuffix}
+              {primaryContext}
             </p>
+            {secondaryLine ? (
+              <p className="text-xs text-[#3C1E38]/45 mt-0.5">{secondaryLine}</p>
+            ) : null}
             <Link
               href="/app/prayer"
               className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-[#3C1E38]/75 hover:text-[#3C1E38] underline-offset-4 hover:underline"
@@ -117,8 +121,11 @@ export function SessionBanner({
             Next session: {nextSunday || "—"} at 2pm
           </p>
           <p className="text-sm text-[#3C1E38]/50 mt-1">
-            {dualContextLine ?? `Week ${weekNumber} of 13 — ${quarterName}`}
+            {primaryContext}
           </p>
+          {secondaryLine ? (
+            <p className="text-xs text-[#3C1E38]/40 mt-0.5">{secondaryLine}</p>
+          ) : null}
           <Link
             href="/app/prayer"
             className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-[#3C1E38]/70 hover:text-[#3C1E38] underline-offset-4 hover:underline"

@@ -2,12 +2,18 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import type { GoalConfig } from "@/lib/data/dominion"
 import type { PulseSessionRow } from "@/lib/pulse"
 import type { PersonalYearConfigRow } from "@/lib/personal-year"
-import { getCalendarQuarterProgress } from "@/lib/personal-year"
+import {
+  findBackfillCandidate,
+  listArchivableQuarters,
+  resolvePulseQuarterContext,
+  type ArchivableQuarter,
+  type BackfillCandidate,
+  type QuarterConfigRow,
+  type QuarterSource,
+} from "@/lib/quarter-context"
 import {
   getSevenDayWindow,
   getNextWeekFocusDatesFromSessionDate,
-  getQuarterCodeForDate,
-  getQuarterProgressForDate,
   toLocalISODate,
   localDateToUtcBounds,
 } from "@/lib/pulse-session-dates"
@@ -37,8 +43,18 @@ export type PulsePageData = {
   quarter: { weekInQuarter: number; phaseName: string }
   weekNumber: number
   quarterCode: string
+  quarterName: string
+  quarterSource: QuarterSource
+  quarterIsComplete: boolean
+  quarterStartDate: string
+  quarterEndDate: string
   sevenDaysAgoStr: string
   personalYears: PersonalYearConfigRow[]
+  quarterConfigRows: QuarterConfigRow[]
+  activeQuarter: QuarterConfigRow | null
+  archivableQuarters: ArchivableQuarter[]
+  allPulseChecks: Record<string, unknown>[]
+  backfillCandidate: BackfillCandidate | null
 }
 
 export async function loadPulsePageData(
@@ -46,11 +62,8 @@ export async function loadPulsePageData(
   userId: string,
   sessionDateStr: string,
   goals: GoalConfig[],
+  options: { preferActiveQuarter?: boolean } = {},
 ): Promise<PulsePageData> {
-  const sessionDate = new Date(sessionDateStr + "T12:00:00")
-  const weekNumber = getCalendarQuarterProgress(sessionDate).weekInQuarter
-  const quarterCode = getQuarterCodeForDate(sessionDate)
-  const quarter = getQuarterProgressForDate(sessionDate)
   const { startStr: sevenDaysAgoStr, endStr: windowEndStr } = getSevenDayWindow(sessionDateStr)
   const nextWeekFocusDates = getNextWeekFocusDatesFromSessionDate(sessionDateStr)
 
@@ -70,6 +83,45 @@ export async function loadPulsePageData(
   let lastWeekTimeAnalysis: string | null = null
   let nextWeekDailyFocus: PulsePageData["nextWeekDailyFocus"] = []
   let personalYears: PersonalYearConfigRow[] = []
+  let quarterConfigRows: QuarterConfigRow[] = []
+  let allPulseChecks: Record<string, unknown>[] = []
+  let allSessionsForArchive: PulseSessionRow[] = []
+
+  async function fetchQuarterConfig(): Promise<QuarterConfigRow[]> {
+    try {
+      const { data } = await supabase
+        .from("quarter_config")
+        .select("*")
+        .eq("user_id", userId)
+        .order("start_date", { ascending: false })
+      return (data ?? []) as QuarterConfigRow[]
+    } catch {
+      return []
+    }
+  }
+
+  async function fetchAllPulseChecks(): Promise<Record<string, unknown>[]> {
+    try {
+      const { data } = await supabase.from("pulse_checks").select("*").eq("user_id", userId)
+      return (data ?? []) as Record<string, unknown>[]
+    } catch {
+      return []
+    }
+  }
+
+  async function fetchAllSessionsForArchive(): Promise<PulseSessionRow[]> {
+    try {
+      const { data } = await supabase
+        .from("pulse_sessions")
+        .select("*")
+        .eq("user_id", userId)
+        .order("date", { ascending: false })
+        .limit(200)
+      return (data ?? []) as PulseSessionRow[]
+    } catch {
+      return []
+    }
+  }
 
   async function fetchPersonalYears(): Promise<PersonalYearConfigRow[]> {
     try {
@@ -166,7 +218,11 @@ export async function loadPulsePageData(
     return { daysAllMet, totalDays: 7 }
   }
 
-  async function fetchPulseCheckForSession(sessionRow: PulseSessionRow | null) {
+  async function fetchPulseCheckForSession(
+    sessionRow: PulseSessionRow | null,
+    resolvedQuarterCode: string,
+    resolvedWeekNumber: number,
+  ) {
     if (sessionRow?.phase3_pulse_check_id) {
       const { data } = await supabase
         .from("pulse_checks")
@@ -179,8 +235,8 @@ export async function loadPulsePageData(
       .from("pulse_checks")
       .select("*")
       .eq("user_id", userId)
-      .eq("quarter_code", quarterCode)
-      .eq("week_number", weekNumber)
+      .eq("quarter_code", resolvedQuarterCode)
+      .eq("week_number", resolvedWeekNumber)
       .maybeSingle()
     return (data as Record<string, unknown> | null) ?? null
   }
@@ -217,20 +273,37 @@ export async function loadPulsePageData(
   }
 
   try {
-    const [sess, past, weekMatch, devotions, prayerSessions, downloads, declSummary, decls, lastTime, focusRows, py] =
-      await Promise.all([
-        fetchTodaySession(),
-        fetchPastSessions(),
-        fetchSessionsForWeekMatching(),
-        fetchWeekDevotions(),
-        fetchWeekPrayerSessions(),
-        fetchWeekDownloads(),
-        fetchDeclarationLogsSummary(),
-        fetchDeclarations(),
-        fetchLastWeekTimeAnalysis(),
-        fetchNextWeekDailyFocus(),
-        fetchPersonalYears(),
-      ])
+    const [
+      sess,
+      past,
+      weekMatch,
+      devotions,
+      prayerSessions,
+      downloads,
+      declSummary,
+      decls,
+      lastTime,
+      focusRows,
+      py,
+      qConfig,
+      pulseChecksAll,
+      archiveSessions,
+    ] = await Promise.all([
+      fetchTodaySession(),
+      fetchPastSessions(),
+      fetchSessionsForWeekMatching(),
+      fetchWeekDevotions(),
+      fetchWeekPrayerSessions(),
+      fetchWeekDownloads(),
+      fetchDeclarationLogsSummary(),
+      fetchDeclarations(),
+      fetchLastWeekTimeAnalysis(),
+      fetchNextWeekDailyFocus(),
+      fetchPersonalYears(),
+      fetchQuarterConfig(),
+      fetchAllPulseChecks(),
+      fetchAllSessionsForArchive(),
+    ])
     todaySession = sess
     pastSessions = past
     sessionsForWeekMatching = weekMatch
@@ -242,11 +315,38 @@ export async function loadPulsePageData(
     lastWeekTimeAnalysis = lastTime
     nextWeekDailyFocus = focusRows as PulsePageData["nextWeekDailyFocus"]
     personalYears = py
-
-    thisWeekPulseCheck = await fetchPulseCheckForSession(todaySession)
+    quarterConfigRows = qConfig
+    allPulseChecks = pulseChecksAll
+    allSessionsForArchive = archiveSessions
   } catch {
     // Tables may not exist
     personalYears = []
+  }
+
+  const activeQuarter = quarterConfigRows.find((q) => q.is_active) ?? null
+  const quarterCtx = resolvePulseQuarterContext(
+    sessionDateStr,
+    activeQuarter,
+    quarterConfigRows,
+    options.preferActiveQuarter ?? false,
+  )
+  const weekNumber = quarterCtx.weekNumber
+  const quarterCode = quarterCtx.quarterCode
+  const quarter = {
+    weekInQuarter: quarterCtx.weekNumber,
+    phaseName: quarterCtx.quarterName,
+  }
+  const archivableQuarters = listArchivableQuarters(quarterConfigRows, allSessionsForArchive)
+  const backfillCandidate = findBackfillCandidate(
+    activeQuarter,
+    allSessionsForArchive,
+    allPulseChecks as { quarter_code: string | null; date: string }[],
+  )
+
+  try {
+    thisWeekPulseCheck = await fetchPulseCheckForSession(todaySession, quarterCode, weekNumber)
+  } catch {
+    // pulse_checks may not exist
   }
 
   return {
@@ -266,7 +366,17 @@ export async function loadPulsePageData(
     quarter,
     weekNumber,
     quarterCode,
+    quarterName: quarterCtx.quarterName,
+    quarterSource: quarterCtx.source,
+    quarterIsComplete: quarterCtx.isComplete,
+    quarterStartDate: quarterCtx.startDate,
+    quarterEndDate: quarterCtx.endDate,
     sevenDaysAgoStr,
     personalYears,
+    quarterConfigRows,
+    activeQuarter,
+    archivableQuarters,
+    allPulseChecks,
+    backfillCandidate,
   }
 }

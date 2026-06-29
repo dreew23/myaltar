@@ -6,6 +6,7 @@
 import { getTodayIntercession } from "./dominion"
 import { GOALS, type GoalConfig } from "./dominion"
 import { normalizePrayerSchedule, type PrayerScheduleConfig } from "@/lib/prayer-schedule"
+import type { CalendarLens } from "@/lib/personal-year"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 export type TodayIntercession = { theme: string; focus: string[] }
@@ -111,5 +112,22 @@ export async function getPrayerScheduleForUser(
     return normalizePrayerSchedule(data?.prayer_schedule)
   } catch {
     return normalizePrayerSchedule(null)
+  }
+}
+
+/** Display-only preference for which calendar lens leads. Defaults to "personal". */
+export async function getPrimaryCalendarLens(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<CalendarLens> {
+  try {
+    const { data } = await supabase
+      .from("profiles")
+      .select("primary_calendar_lens")
+      .eq("id", userId)
+      .maybeSingle()
+    return data?.primary_calendar_lens === "system" ? "system" : "personal"
+  } catch {
+    return "personal"
   }
 }

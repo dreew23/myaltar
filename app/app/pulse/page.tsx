@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
-import { getGoalsForUser } from "@/lib/data/user-config"
+import { getGoalsForUser, getPrimaryCalendarLens } from "@/lib/data/user-config"
 import { PulseClient } from "./pulse-client"
 import { loadPulsePageData } from "@/lib/pulse-page-data"
 import { toLocalISODate } from "@/lib/pulse-session-dates"
@@ -25,7 +25,10 @@ export default async function PulsePage({
     raw && /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : calendarTodayStr
 
   const goals = await getGoalsForUser(supabase, user.id)
-  const data = await loadPulsePageData(supabase, user.id, sessionDateStr, goals)
+  const [data, primaryCalendarLens] = await Promise.all([
+    loadPulsePageData(supabase, user.id, sessionDateStr, goals, { preferActiveQuarter: true }),
+    getPrimaryCalendarLens(supabase, user.id),
+  ])
 
   return (
     <PulseClient
@@ -33,6 +36,7 @@ export default async function PulsePage({
       calendarTodayStr={calendarTodayStr}
       sessionDateStr={sessionDateStr}
       userId={user.id}
+      primaryCalendarLens={primaryCalendarLens}
       {...data}
     />
   )

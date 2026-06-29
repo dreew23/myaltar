@@ -10,7 +10,7 @@ import {
   getCalendarQuarterProgress,
   getCalendarQuarterChipsInRange,
 } from "@/lib/personal-year"
-import type { PersonalYearConfigRow } from "@/lib/personal-year"
+import type { PersonalYearConfigRow, CalendarLens } from "@/lib/personal-year"
 import { QuarterHealth } from "@/components/app/goals/quarter-health"
 import { GoalTrajectoryCard } from "@/components/app/goals/goal-trajectory-card"
 import { NotNowOverview } from "@/components/app/goals/not-now-overview"
@@ -69,6 +69,7 @@ interface Props {
     declarationsSpoken: number
   }
   userId: string
+  primaryCalendarLens: CalendarLens
 }
 
 function getWeekOfQuarter(dateStr: string, quarterStartStr: string): number {
@@ -95,10 +96,12 @@ export function GoalsClient({
   seasonFruits,
   pulseConsistency,
   yearFruits,
+  primaryCalendarLens,
 }: Props) {
   const [tab, setTab] = useState<"quarter" | "year">("quarter")
   const currentWeek = quarterConfig.weekInQuarter
   const personal = useMemo(() => getPersonalYearProgress(personalYears), [personalYears])
+  const personalIsPrimary = primaryCalendarLens === "personal" && !!personal
   const calendarQ = useMemo(() => getCalendarQuarterProgress(), [])
   const calendarQuarterEndLabel = useMemo(() => {
     const end = new Date(calendarQ.calendarYear, calendarQ.quarter * 3, 0)
@@ -313,10 +316,16 @@ export function GoalsClient({
           <div className="flex flex-col items-end gap-0.5 min-w-0">
             {personal ? (
               <>
-                <span className="text-xs font-semibold text-[#3C1E38]">
-                  Year {personal.yearNumber}: {personal.yearName} — Week {personal.weekNumber} of {personal.totalWeeks}
+                <span
+                  className={personalIsPrimary ? "text-xs font-semibold text-[#3C1E38]" : "text-[11px] text-[#3C1E38]/45"}
+                  style={{ order: personalIsPrimary ? 0 : 1 }}
+                >
+                  Personal: Year {personal.yearNumber}: {personal.yearName} — Week {personal.weekNumber} of {personal.totalWeeks}
                 </span>
-                <span className="text-[11px] text-[#3C1E38]/45">
+                <span
+                  className={personalIsPrimary ? "text-[11px] text-[#3C1E38]/45" : "text-xs font-semibold text-[#3C1E38]"}
+                  style={{ order: personalIsPrimary ? 1 : 0 }}
+                >
                   Calendar: {calendarQ.labelShort} ending {calendarQuarterEndLabel}
                 </span>
               </>

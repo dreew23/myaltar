@@ -14,7 +14,7 @@ import {
   getTodayPrayerAreas, isSunday,
 } from "@/lib/data/dominion"
 import { getPersonalYearProgress, getCalendarQuarterProgress } from "@/lib/personal-year"
-import type { PersonalYearConfigRow } from "@/lib/personal-year"
+import type { PersonalYearConfigRow, CalendarLens } from "@/lib/personal-year"
 import { QuickCaptureForm } from "@/app/app/downloads/downloads-client"
 import { SessionQualityStars } from "@/components/app/pulse/session-history"
 import { SESSION_QUALITY_LABELS } from "@/lib/pulse"
@@ -42,6 +42,17 @@ import {
   primarySlotSummary,
   slotDisplayLabel,
 } from "@/lib/prayer-schedule"
+import { formatWatchTimeRange } from "@/lib/prayer-watches"
+
+export interface SystemQuarterSummary {
+  name: string
+  code: string
+  weekNumber: number
+  totalWeeks: number
+  startDate: string
+  endDate: string
+  progress: number
+}
 
 interface WeeklyGoalsRow {
   id: string
@@ -100,6 +111,9 @@ interface Props {
   declarationsForPicker: { id: string; text: string }[]
   intercessionSchedule: IntercessionDayRow[] | null
   prayerSchedule: PrayerScheduleConfig
+  primaryCalendarLens: CalendarLens
+  /** Active System Calendar quarter (quarter_config). Null when none configured — card falls back to the calendar quarter. */
+  systemQuarter: SystemQuarterSummary | null
 }
 
 const GOAL_CODES = ["G1", "G2", "G3", "G4", "G5", "G6", "G7"] as const
@@ -119,6 +133,8 @@ export function DashboardClient({
   declarationsForPicker,
   intercessionSchedule,
   prayerSchedule,
+  primaryCalendarLens,
+  systemQuarter,
 }: Props) {
   const router = useRouter()
   const verse = getTodayVerse()
@@ -127,6 +143,7 @@ export function DashboardClient({
   const prayerAreas = getTodayPrayerAreas()
   const personal = useMemo(() => getPersonalYearProgress(personalYears), [personalYears])
   const calendarQ = useMemo(() => getCalendarQuarterProgress(), [])
+  const personalIsPrimary = primaryCalendarLens === "personal" && !!personal
   const sunday = isSunday()
 
   const dailyFocusChecklistItems = useMemo(
@@ -656,7 +673,12 @@ export function DashboardClient({
                       ) : (
                         <Circle className="w-4 h-4 text-[#3C1E38]/30 shrink-0" />
                       )}
-                      <span className="text-left">{slotDisplayLabel(slot)}</span>
+                      <span className="flex flex-col text-left">
+                        <span>{slotDisplayLabel(slot)}</span>
+                        <span className="text-[11px] text-[#3C1E38]/45">
+                          {formatWatchTimeRange(slot.startTime, slot.endTime)}
+                        </span>
+                      </span>
                     </button>
                   )
                 })}
@@ -997,15 +1019,25 @@ export function DashboardClient({
             </Link>
           </div>
 
-          {/* Quarter progress: personal DOMINION year (primary) + calendar quarter (reference) */}
-          <div className="space-y-3">
+          {/* Quarter progress: primary lens leads (Settings toggle); both always shown */}
+          <div className="flex flex-col gap-3">
             {personal && (
-              <div className="bg-white rounded-xl p-4 border border-[#F9D57E]/25">
+              <div
+                className="bg-white rounded-xl p-4 border border-[#F9D57E]/25"
+                style={{ order: personalIsPrimary ? 0 : 1 }}
+              >
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-sm font-medium text-[#3C1E38]">
                     Year {personal.yearNumber}: {personal.yearName} — Week {personal.weekNumber} of {personal.totalWeeks}
                   </span>
-                  <span className="text-xs font-medium text-[#F9D57E]">{personal.progress}%</span>
+                  <div className="flex items-center gap-1.5">
+                    {personalIsPrimary && (
+                      <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-[#F9D57E]/50 text-[#3C1E38]">
+                        Primary
+                      </span>
+                    )}
+                    <span className="text-xs font-medium text-[#F9D57E]">{personal.progress}%</span>
+                  </div>
                 </div>
                 <div className="h-2.5 bg-[#F9D57E]/15 rounded-full overflow-hidden mb-1">
                   <div
@@ -1019,21 +1051,39 @@ export function DashboardClient({
                 )}
               </div>
             )}
-            <div className="bg-white rounded-xl p-3.5 border border-[#A7C2D7]/15 opacity-95">
+            <div
+              className="bg-white rounded-xl p-3.5 border border-[#A7C2D7]/15 opacity-95"
+              style={{ order: personalIsPrimary ? 1 : 0 }}
+            >
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-xs text-[#3C1E38]/50">
-                  Year {calendarQ.halfYearPhase}: {calendarQ.halfYearPhaseName} — Week {calendarQ.weekInQuarter} of {calendarQ.totalWeeks}
+                  {systemQuarter
+                    ? `${systemQuarter.name} — Week ${systemQuarter.weekNumber} of ${systemQuarter.totalWeeks}`
+                    : `Year ${calendarQ.halfYearPhase}: ${calendarQ.halfYearPhaseName} — Week ${calendarQ.weekInQuarter} of ${calendarQ.totalWeeks}`}
                 </span>
-                <span className="text-[10px] font-medium text-[#A7C2D7]">{calendarQ.labelShort}</span>
+                <div className="flex items-center gap-1.5">
+                  {!personalIsPrimary && (
+                    <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-[#A7C2D7]/30 text-[#3C1E38]">
+                      Primary
+                    </span>
+                  )}
+                  <span className="text-[10px] font-medium text-[#A7C2D7]">
+                    {systemQuarter ? systemQuarter.code || "System Calendar" : calendarQ.labelShort}
+                  </span>
+                </div>
               </div>
               <div className="h-2 bg-[#A7C2D7]/10 rounded-full overflow-hidden mb-1">
                 <div
                   className="h-full bg-[#A7C2D7] rounded-full transition-all"
-                  style={{ width: `${calendarQ.progress}%` }}
+                  style={{ width: `${systemQuarter ? systemQuarter.progress : calendarQ.progress}%` }}
                 />
               </div>
-              <p className="text-[11px] text-[#3C1E38]/45">{calendarQ.dateRangeLabel}</p>
-              <p className="text-[10px] text-[#A7C2D7] mt-0.5">Calendar Year</p>
+              <p className="text-[11px] text-[#3C1E38]/45">
+                {systemQuarter
+                  ? formatBarDateRange(systemQuarter.startDate, systemQuarter.endDate)
+                  : calendarQ.dateRangeLabel}
+              </p>
+              <p className="text-[10px] text-[#A7C2D7] mt-0.5">{systemQuarter ? "System Calendar" : "Calendar Year"}</p>
             </div>
           </div>
         </div>

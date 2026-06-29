@@ -114,6 +114,10 @@ export default async function SettingsPage() {
   }
 
   const profile = profileRes.data
+  const primaryCalendarLens =
+    (profile as { primary_calendar_lens?: string } | null)?.primary_calendar_lens === "system"
+      ? "system"
+      : "personal"
   const quarters = (quartersRes.data ?? []) as { id: string; code: string; name: string; start_date: string; end_date: string; year_number: number | null; is_active: boolean }[]
   const intercessionSchedule = (intercessionRes.data ?? []) as { day_of_week: number; theme: string; people: string[]; life_areas: string[] }[]
   const goals = (goalsRes.data ?? []) as { id: string; code: string; title: string; subtitle: string | null; description: string | null; pulse_question: string | null; pulse_type: string; db_field: string | null; kr_10x: string | null; kr_5x: string | null; kr_2x: string | null; not_now: string[]; icon_name: string | null; active: boolean; display_order: number | null }[]
@@ -161,6 +165,7 @@ export default async function SettingsPage() {
       quarterStartStr={quarterStartStr}
       quarterEndStr={quarterEndStr}
       quarterCode={quarterCode}
+      primaryCalendarLens={primaryCalendarLens}
     />
   )
 }

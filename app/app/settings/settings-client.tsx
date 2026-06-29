@@ -15,6 +15,7 @@ import { User as UserIcon, Settings, Bell, Shield, LogOut, Trash2, Check, Loader
 import { SectionCard } from "@/components/app/settings/section-card"
 import { PersonalYearConfig } from "@/components/app/settings/personal-year-config"
 import { QuarterConfig } from "@/components/app/settings/quarter-config"
+import { CalendarLensToggle } from "@/components/app/settings/calendar-lens-toggle"
 import { IntercessionEditor } from "@/components/app/settings/intercession-editor"
 import { PrayerScheduleEditor } from "@/components/app/settings/prayer-schedule-editor"
 import { GoalEditor } from "@/components/app/settings/goal-editor"
@@ -26,6 +27,7 @@ import type { IntercessionDayRow } from "@/components/app/settings/intercession-
 import type { GoalRow } from "@/components/app/settings/goal-editor"
 import type { NotificationPrefs } from "@/components/app/settings/notifications-section"
 import type { PrayerScheduleConfig } from "@/lib/prayer-schedule"
+import type { CalendarLens } from "@/lib/personal-year"
 
 export interface SettingsProfile {
   id: string
@@ -48,6 +50,7 @@ interface SettingsClientProps {
   quarterStartStr: string
   quarterEndStr: string
   quarterCode: string
+  primaryCalendarLens: CalendarLens
 }
 
 const DOMINION_RHYTHMS = [
@@ -70,6 +73,7 @@ const SECTIONS = [
   { id: "dominion-rhythm", label: "DOMINION Rhythm" },
   { id: "prayer-schedule", label: "Prayer Watches" },
   { id: "primary-focus", label: "Primary Focus Area" },
+  { id: "calendar-lens", label: "Primary Lens" },
   { id: "personal-year-config", label: "Personal Year" },
   { id: "quarter-config", label: "System Calendar" },
   { id: "intercession-schedule", label: "Intercession Schedule" },
@@ -92,6 +96,7 @@ export default function SettingsClient({
   quarterStartStr,
   quarterEndStr,
   quarterCode,
+  primaryCalendarLens,
 }: SettingsClientProps) {
   const router = useRouter()
   const supabase = createClient()
@@ -286,6 +291,9 @@ export default function SettingsClient({
             Save Changes
           </Button>
         </div>
+
+        {/* 4. Primary planning lens (display-only) */}
+        <CalendarLensToggle userId={user.id} initialLens={primaryCalendarLens} onSave={() => router.refresh()} />
 
         {/* 4a. Personal year (DOMINION) */}
         <PersonalYearConfig userId={user.id} initialRows={personalYears} onRowsChange={() => router.refresh()} />

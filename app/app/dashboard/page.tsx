@@ -2,13 +2,14 @@ import { redirect } from "next/navigation"
 import { normalizeDailyFocusRow, type DailyFocusRow } from "@/lib/daily-focus-checklist"
 import { localCalendarDateString } from "@/lib/prayer-week"
 import { createClient } from "@/lib/supabase/server"
-import { getTodayIntercessionForUser, getPrayerScheduleForUser } from "@/lib/data/user-config"
+import { getTodayIntercessionForUser, getPrayerScheduleForUser, getPrimaryCalendarLens } from "@/lib/data/user-config"
 import type { PersonalYearConfigRow } from "@/lib/personal-year"
 import type { WeeklyCommitment, WeeklyCommitmentLog } from "@/lib/weekly-commitments"
 import type { IntercessionDayRow } from "@/components/app/settings/intercession-editor"
 import type { PrayerScheduleConfig } from "@/lib/prayer-schedule"
 import { normalizePrayerSlotsCompleted } from "@/lib/prayer-schedule"
-import { DashboardClient } from "./dashboard-client"
+import { resolvePulseQuarterContext, type QuarterConfigRow } from "@/lib/quarter-context"
+import { DashboardClient, type SystemQuarterSummary } from "./dashboard-client"
 
 export const metadata = { title: "DOMINION | ALTAR" }
 
@@ -36,6 +37,7 @@ export default async function DashboardPage() {
 
   const todayIntercession = await getTodayIntercessionForUser(supabase, user.id)
   const prayerSchedule = await getPrayerScheduleForUser(supabase, user.id)
+  const primaryCalendarLens = await getPrimaryCalendarLens(supabase, user.id)
 
   const today = new Date()
   const todayStr = localCalendarDateString(today)
@@ -354,6 +356,37 @@ export default async function DashboardPage() {
     })(),
   ])
 
+  // Active System Calendar quarter (quarter_config) — drives the system-lens card range/week/theme.
+  let systemQuarter: SystemQuarterSummary | null = null
+  try {
+    const { data: qcRows } = await supabase
+      .from("quarter_config")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("start_date", { ascending: true })
+    const rows = (qcRows ?? []) as QuarterConfigRow[]
+    const activeQuarter = rows.find((q) => q.is_active) ?? null
+    const ctx = resolvePulseQuarterContext(todayStr, activeQuarter, rows, true)
+    if (ctx.source === "quarter_config" && ctx.startDate && ctx.endDate) {
+      const start = new Date(ctx.startDate + "T12:00:00").getTime()
+      const end = new Date(ctx.endDate + "T12:00:00").getTime()
+      const now = new Date(todayStr + "T12:00:00").getTime()
+      const progress =
+        end > start ? Math.min(100, Math.max(0, Math.round(((now - start) / (end - start)) * 100))) : 0
+      systemQuarter = {
+        name: ctx.quarterName || "System Calendar",
+        code: ctx.quarterCode || "",
+        weekNumber: ctx.weekNumber,
+        totalWeeks: 13,
+        startDate: ctx.startDate,
+        endDate: ctx.endDate,
+        progress,
+      }
+    }
+  } catch {
+    // quarter_config may not exist yet; system-lens card falls back to the calendar quarter
+  }
+
   const safeIntercession = {
     theme: todayIntercession?.theme ?? "Today",
     focus: Array.isArray(todayIntercession?.focus) ? todayIntercession.focus : [],
@@ -391,6 +424,8 @@ export default async function DashboardPage() {
       declarationsForPicker={activeDeclarationsForPicker}
       intercessionSchedule={intercessionScheduleRows}
       prayerSchedule={prayerSchedule}
+      primaryCalendarLens={primaryCalendarLens}
+      systemQuarter={systemQuarter}
     />
   )
 }

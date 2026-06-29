@@ -182,6 +182,71 @@ export function getCalendarQuarterEndDateStr(calendar: CalendarQuarterProgress):
   return `${y}-${mo}-${day}`
 }
 
+/** Which calendar lens is shown as primary (display-only preference). */
+export type CalendarLens = "personal" | "system"
+
+export type LensLine = {
+  /** "Personal" | "Calendar" */
+  kind: "personal" | "calendar"
+  /** e.g. "Year 3: Momentum & Mastery" or "Q3 2026". */
+  label: string
+  /** Full single-line label, e.g. "Personal: Year 3 — Week 11 of 13". */
+  line: string
+  weekNumber: number
+  totalWeeks: number
+  progress: number
+}
+
+export type LensLines = {
+  primary: LensLine
+  secondary: LensLine | null
+  primaryIsPersonal: boolean
+}
+
+function personalLensLine(personal: PersonalYearProgress): LensLine {
+  const label = `Year ${personal.yearNumber}: ${personal.yearName}`
+  return {
+    kind: "personal",
+    label,
+    line: `Personal: ${label} — Week ${personal.weekNumber} of ${personal.totalWeeks}`,
+    weekNumber: personal.weekNumber,
+    totalWeeks: personal.totalWeeks,
+    progress: personal.progress,
+  }
+}
+
+function calendarLensLine(calendar: CalendarQuarterProgress): LensLine {
+  return {
+    kind: "calendar",
+    label: calendar.labelShort,
+    line: `Calendar: ${calendar.labelShort} — Week ${calendar.weekInQuarter} of ${calendar.totalWeeks}`,
+    weekNumber: calendar.weekInQuarter,
+    totalWeeks: calendar.totalWeeks,
+    progress: calendar.progress,
+  }
+}
+
+/**
+ * Resolve which lens leads and which is the secondary reference.
+ * Display-only: callers still store/key data on their own source of truth.
+ * When there is no personal year, calendar is always primary (no secondary).
+ */
+export function formatLensLines(
+  personal: PersonalYearProgress | null,
+  calendar: CalendarQuarterProgress,
+  lens: CalendarLens
+): LensLines {
+  const cal = calendarLensLine(calendar)
+  if (!personal) {
+    return { primary: cal, secondary: null, primaryIsPersonal: false }
+  }
+  const per = personalLensLine(personal)
+  if (lens === "system") {
+    return { primary: cal, secondary: per, primaryIsPersonal: false }
+  }
+  return { primary: per, secondary: cal, primaryIsPersonal: true }
+}
+
 /** Non-overlapping calendar quarter labels (e.g. Q4 2025 … Q4 2026) for a date span. */
 export function getCalendarQuarterChipsInRange(startStr: string, endStr: string): { label: string }[] {
   const start = new Date(startStr + "T12:00:00")

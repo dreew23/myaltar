@@ -9,7 +9,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { SectionCard } from "./section-card"
 import { NewQuarterFlow } from "./new-quarter-flow"
+import { localCalendarDateString } from "@/lib/prayer-week"
 import { getQuarterProgress } from "@/lib/data/dominion"
+import { getWeekInQuarterRange } from "@/lib/quarter-context"
 
 export interface QuarterRow {
   id: string
@@ -19,6 +21,7 @@ export interface QuarterRow {
   end_date: string
   year_number: number | null
   is_active: boolean
+  archived_at?: string | null
 }
 
 interface QuarterConfigProps {
@@ -48,7 +51,7 @@ export function QuarterConfig({ userId, quarters, onQuartersChange }: QuarterCon
     ? `${formatDate(activeQuarter.start_date)} – ${formatDate(activeQuarter.end_date)}`
     : "—"
   const weekProgress = activeQuarter
-    ? dominionQuarter.weekInQuarter
+    ? getWeekInQuarterRange(activeQuarter.start_date, activeQuarter.end_date, localCalendarDateString(new Date()))
     : dominionQuarter.weekInQuarter
 
   const [form, setForm] = useState({
