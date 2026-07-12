@@ -15,6 +15,26 @@ export function PWARegister({ onUpdateReady, onUpdateCleared }: Props) {
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return
 
+    // In development the SW caches stale chunk manifests and force-reloads on
+    // controllerchange, which surfaces as ChunkLoadError (especially with the
+    // slow compiles caused by running from a OneDrive-synced folder). Never
+    // register it in dev, and proactively remove any already-installed worker
+    // + its caches so a previously-installed SW stops interfering.
+    if (process.env.NODE_ENV !== "production") {
+      navigator.serviceWorker
+        .getRegistrations?.()
+        .then((regs) => regs.forEach((r) => r.unregister()))
+        .catch(() => {})
+      if (typeof caches !== "undefined") {
+        caches
+          .keys()
+          .then((keys) => keys.forEach((k) => caches.delete(k)))
+          .catch(() => {})
+      }
+      onUpdateCleared?.()
+      return
+    }
+
     const emitReady = (registration: ServiceWorkerRegistration) => {
       if (!registration.waiting) return
       onUpdateReady?.(() => {

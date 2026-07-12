@@ -14,10 +14,18 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Progress } from "@/components/ui/progress"
 import { createClient } from "@/lib/supabase/client"
 import { ThisWeekTab } from "@/components/app/sermons/this-week-tab"
+import { SermonJournal } from "@/components/app/sermons/sermon-journal"
 import { getMondayOfWeek, localCalendarDateString } from "@/lib/prayer-week"
 
 // ─── Types ───────────────────────────────────────────────────
-interface Sermon {
+export interface KeyScripture {
+  ref: string
+  angle: string
+}
+
+export type EntryStatus = "captured" | "processed" | "living"
+
+export interface Sermon {
   id: string
   user_id: string
   title: string
@@ -37,6 +45,78 @@ interface Sermon {
   application_date: string | null
   created_at: string
   updated_at: string
+  // ── Sermon Journal (8 sections) ──
+  // 1 · The Record (minister = speaker, recording link = source_url)
+  platform: string | null
+  sermon_date: string | null
+  series: string | null
+  scripture_anchors: string[]
+  // 2 · The Burden
+  burden: string | null
+  // 3 · The Teaching
+  core_points: string[]
+  key_scriptures: KeyScripture[]
+  quotes: string[]
+  // 4 · The Revelation
+  revelation: string | null
+  revelation_download_id: string | null
+  // 5 · The Response (exactly four)
+  response_conviction: string | null
+  response_declaration: string | null
+  response_prayer_point: string | null
+  response_action: string | null
+  response_action_deadline: string | null
+  response_declaration_id: string | null
+  response_action_routed: boolean
+  // 6 · The Formation Link
+  formation_link: string | null
+  // 7 · The Retention Loop
+  teach_it_test: boolean
+  seven_day_review: string | null
+  spaced_summary: string | null
+  // 8 · Verdict + Status
+  relisten_worthy: boolean
+  entry_status: EntryStatus
+}
+
+/** New rows from Supabase may return null for freshly-added journal columns; coerce to safe defaults. */
+export function normalizeSermon(raw: Record<string, unknown>): Sermon {
+  const asArray = (v: unknown): string[] => (Array.isArray(v) ? v.map((x) => String(x)) : [])
+  const asScriptures = (v: unknown): KeyScripture[] =>
+    Array.isArray(v)
+      ? v
+          .map((x) => (x && typeof x === "object" ? (x as Record<string, unknown>) : {}))
+          .map((o) => ({ ref: String(o.ref ?? ""), angle: String(o.angle ?? "") }))
+      : []
+  const s = raw as Record<string, unknown>
+  return {
+    ...(raw as unknown as Sermon),
+    tags: asArray(s.tags),
+    mastery_life_areas: asArray(s.mastery_life_areas),
+    scripture_anchors: asArray(s.scripture_anchors),
+    core_points: asArray(s.core_points),
+    key_scriptures: asScriptures(s.key_scriptures),
+    quotes: asArray(s.quotes),
+    platform: (s.platform as string | null) ?? null,
+    sermon_date: (s.sermon_date as string | null) ?? null,
+    series: (s.series as string | null) ?? null,
+    burden: (s.burden as string | null) ?? null,
+    revelation: (s.revelation as string | null) ?? null,
+    revelation_download_id: (s.revelation_download_id as string | null) ?? null,
+    response_conviction: (s.response_conviction as string | null) ?? null,
+    response_declaration: (s.response_declaration as string | null) ?? null,
+    response_prayer_point: (s.response_prayer_point as string | null) ?? null,
+    response_action: (s.response_action as string | null) ?? null,
+    response_action_deadline: (s.response_action_deadline as string | null) ?? null,
+    response_declaration_id: (s.response_declaration_id as string | null) ?? null,
+    response_action_routed: Boolean(s.response_action_routed),
+    formation_link: (s.formation_link as string | null) ?? null,
+    teach_it_test: Boolean(s.teach_it_test),
+    seven_day_review: (s.seven_day_review as string | null) ?? null,
+    spaced_summary: (s.spaced_summary as string | null) ?? null,
+    relisten_worthy: Boolean(s.relisten_worthy),
+    entry_status: (s.entry_status as EntryStatus) ?? "captured",
+  }
 }
 
 export type WeeklySermonRow = {
@@ -84,6 +164,12 @@ type SortKey = "created_at" | "resonance" | "title"
 
 const categoryMap = Object.fromEntries(CATEGORIES.map((c) => [c.value, c]))
 
+const STATUS_BADGE: Record<EntryStatus, { label: string; cls: string }> = {
+  captured: { label: "Captured", cls: "bg-[#A7C2D7]/15 text-[#3C1E38]/60" },
+  processed: { label: "Processed", cls: "bg-[#F9D57E]/25 text-[#3C1E38]" },
+  living: { label: "Living", cls: "bg-emerald-100 text-emerald-700" },
+}
+
 // ─── Component ───────────────────────────────────────────────
 /** Monday as start of week */
 function getWeekStartMonday(d: Date): string {
@@ -95,7 +181,9 @@ export function SermonsClient({ sermons: initial, userId, initialWeekStartStr, i
   const supabase = createClient()
 
   // Core state
-  const [sermons, setSermons] = useState<Sermon[]>(initial)
+  const [sermons, setSermons] = useState<Sermon[]>(() =>
+    initial.map((s) => normalizeSermon(s as unknown as Record<string, unknown>)),
+  )
   const [view, setView] = useState<ViewTab>("library")
   const [weekStartStr, setWeekStartStr] = useState(initialWeekStartStr ?? getWeekStartMonday(new Date()))
   const [weeklySermons, setWeeklySermons] = useState<WeeklySermonRow[]>(initialWeeklySermons)
@@ -116,6 +204,13 @@ export function SermonsClient({ sermons: initial, userId, initialWeekStartStr, i
   // Detail sheet
   const [selectedSermon, setSelectedSermon] = useState<Sermon | null>(null)
   const [saving, setSaving] = useState(false)
+
+  // Full journal (derive from live list so it always reflects the latest saved values)
+  const [journalSermonId, setJournalSermonId] = useState<string | null>(null)
+  const journalSermon = useMemo(
+    () => (journalSermonId ? sermons.find((s) => s.id === journalSermonId) ?? null : null),
+    [journalSermonId, sermons],
+  )
 
   // Add / bulk import dialog
   const [showAddDialog, setShowAddDialog] = useState(false)
@@ -214,7 +309,7 @@ export function SermonsClient({ sermons: initial, userId, initialWeekStartStr, i
     }
     const { data, error } = await supabase.from("sermons").insert(payload).select().single()
     if (!error && data) {
-      setSermons((prev) => [data, ...prev])
+      setSermons((prev) => [normalizeSermon(data), ...prev])
       setNewSermon({ title: "", speaker: "Apostle Joshua Selman", category: "uncategorized", resonance: 0, source_url: "", tags: "" })
       setShowAddDialog(false)
     }
@@ -233,7 +328,7 @@ export function SermonsClient({ sermons: initial, userId, initialWeekStartStr, i
     }))
     const { data, error } = await supabase.from("sermons").insert(rows).select()
     if (!error && data) {
-      setSermons((prev) => [...data, ...prev])
+      setSermons((prev) => [...data.map((d) => normalizeSermon(d)), ...prev])
       setBulkText("")
       setShowAddDialog(false)
     }
@@ -509,32 +604,45 @@ export function SermonsClient({ sermons: initial, userId, initialWeekStartStr, i
             </div>
           ) : (
             <div className="bg-white rounded-xl border border-[#A7C2D7]/10 overflow-hidden divide-y divide-[#A7C2D7]/10">
-              {filteredSermons.map((sermon) => (
-                <button
+              {filteredSermons.map((sermon) => {
+                const status = STATUS_BADGE[sermon.entry_status] ?? STATUS_BADGE.captured
+                return (
+                <div
                   key={sermon.id}
-                  onClick={() => setSelectedSermon(sermon)}
-                  className="w-full flex items-center gap-4 p-4 hover:bg-[#FDFCF9] transition-colors text-left"
+                  className="w-full flex items-center gap-3 p-4 hover:bg-[#FDFCF9] transition-colors"
                 >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                  <button onClick={() => setSelectedSermon(sermon)} className="flex-1 min-w-0 text-left">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <p className="font-medium text-[#3C1E38] truncate">{sermon.title}</p>
                       {thisWeekSermonIds.has(sermon.id) && (
                         <span className="flex-shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-full bg-[#F9D57E]/20 text-[#3C1E38] border border-[#F9D57E]/40">This week</span>
                       )}
+                      <span className={`flex-shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-full ${status.cls}`}>{status.label}</span>
                     </div>
+                    {sermon.burden && (
+                      <p className="text-xs italic text-[#3C1E38]/45 truncate mb-1">&ldquo;{sermon.burden}&rdquo;</p>
+                    )}
                     <div className="flex items-center gap-3 text-xs text-[#3C1E38]/40">
                       <span>{sermon.speaker}</span>
                       <CategoryBadge cat={sermon.category} />
                     </div>
-                  </div>
+                  </button>
                   <div className="flex items-center gap-3 flex-shrink-0">
                     {sermon.resonance && <StarRating value={sermon.resonance} size="w-3.5 h-3.5" />}
                     {sermon.mastered && <Crown className="w-4 h-4 text-[#F9D57E]" aria-label="Mastered" />}
                     {sermon.applied && <CheckCircle2 className="w-4 h-4 text-emerald-500" aria-label="Applied" />}
-                    <ChevronRight className="w-4 h-4 text-[#3C1E38]/20" />
                   </div>
-                </button>
-              ))}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setJournalSermonId(sermon.id)}
+                    className="flex-shrink-0 text-xs border-[#A7C2D7]/30 text-[#3C1E38] hover:bg-[#A7C2D7]/10"
+                  >
+                    <BookOpen className="w-3.5 h-3.5 mr-1" /> Journal
+                  </Button>
+                </div>
+                )
+              })}
             </div>
           )}
         </div>
@@ -720,6 +828,13 @@ export function SermonsClient({ sermons: initial, userId, initialWeekStartStr, i
                 <SheetTitle className="font-playfair text-[#3C1E38]">Sermon Details</SheetTitle>
                 <SheetDescription className="sr-only">Edit sermon details</SheetDescription>
               </SheetHeader>
+
+              <Button
+                onClick={() => setJournalSermonId(selectedSermon.id)}
+                className="mt-4 w-full bg-[#3C1E38] hover:bg-[#3C1E38]/90 text-white"
+              >
+                <BookOpen className="w-4 h-4 mr-2" /> Open Full Journal
+              </Button>
 
               <div className="mt-6 space-y-5">
                 {/* Title */}
@@ -934,6 +1049,17 @@ export function SermonsClient({ sermons: initial, userId, initialWeekStartStr, i
           )}
         </SheetContent>
       </Sheet>
+
+      {/* ─── SERMON JOURNAL (full 8-section capture) ─────────── */}
+      {journalSermon && (
+        <SermonJournal
+          sermon={journalSermon}
+          userId={userId}
+          open={!!journalSermon}
+          onClose={() => setJournalSermonId(null)}
+          onUpdate={updateSermon}
+        />
+      )}
 
       {/* ─── ADD / BULK IMPORT DIALOG ───────────────────────── */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>

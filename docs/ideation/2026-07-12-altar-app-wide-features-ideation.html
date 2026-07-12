@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ideation: ALTAR App-Wide Feature Directions</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --bg: #FDFCF9;
+    --ink: #3C1E38;
+    --ink-soft: rgba(60,30,56,0.62);
+    --ink-faint: rgba(60,30,56,0.45);
+    --gold: #F9D57E;
+    --gold-soft: rgba(249,213,126,0.18);
+    --blue: #A7C2D7;
+    --blue-soft: rgba(167,194,215,0.16);
+    --blue-line: rgba(167,194,215,0.35);
+    --green: #2f7d5d;
+    --green-soft: rgba(47,125,93,0.10);
+    --rose: #a34057;
+    --rose-soft: rgba(163,64,87,0.08);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: 'Inter', -apple-system, 'Segoe UI', sans-serif;
+    font-size: 15px; line-height: 1.65;
+  }
+  .page { max-width: 900px; margin-inline: auto; padding: 48px 28px 80px; }
+  p, li, dd { max-width: 70ch; }
+  h1, h2, h3 { font-family: 'Playfair Display', Georgia, serif; line-height: 1.25; }
+  h1 { font-size: 30px; margin: 6px 0 4px; }
+  h2 { font-size: 21px; margin: 44px 0 12px; padding-bottom: 6px; border-bottom: 2px solid var(--blue-line); }
+  h3 { font-size: 17px; margin: 0 0 6px; }
+  .eyebrow { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-faint); font-weight: 600; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 6px; }
+  .meta span { font-size: 12px; padding: 3px 12px; border-radius: 999px; background: var(--blue-soft); color: var(--ink-soft); border: 1px solid var(--blue-line); }
+  .stats { display: flex; flex-wrap: wrap; gap: 12px; margin: 22px 0 4px; }
+  .stat { background: #fff; border: 1px solid var(--blue-line); border-radius: 12px; padding: 12px 18px; min-width: 118px; }
+  .stat b { display: block; font-size: 22px; font-family: 'Playfair Display', serif; }
+  .stat small { color: var(--ink-faint); font-size: 11.5px; }
+  .axes { list-style: none; padding: 0; margin: 8px 0 0; }
+  .axes li { padding: 8px 14px; margin-bottom: 6px; background: #fff; border: 1px solid var(--blue-line); border-radius: 10px; }
+  .axes code { font-size: 12.5px; background: var(--blue-soft); padding: 1px 7px; border-radius: 6px; }
+  .jump { background: var(--gold-soft); border: 1px solid rgba(249,213,126,0.5); border-radius: 12px; padding: 14px 18px; margin: 14px 0 26px; }
+  .jump ol { margin: 6px 0 0; padding-left: 20px; }
+  .jump a { color: var(--ink); text-decoration: none; font-weight: 500; }
+  .jump a:hover { text-decoration: underline; }
+  article.idea { background: #fff; border: 1px solid var(--blue-line); border-radius: 16px; padding: 24px 26px 20px; margin-bottom: 26px; }
+  .idea-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+  .rank { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700; color: var(--gold); -webkit-text-stroke: 0.6px var(--ink); }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 14px; }
+  .chip { font-size: 11px; font-weight: 600; padding: 3px 11px; border-radius: 999px; border: 1px solid transparent; }
+  .chip.axis { background: var(--blue-soft); color: var(--ink-soft); border-color: var(--blue-line); }
+  .chip.conf-high { background: var(--green-soft); color: var(--green); }
+  .chip.conf-med { background: var(--gold-soft); color: #7a5c12; }
+  .chip.cx { background: rgba(60,30,56,0.06); color: var(--ink-soft); }
+  dl.fields { margin: 0; }
+  dl.fields dt { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; color: var(--ink-faint); margin-top: 12px; }
+  dl.fields dd { margin: 3px 0 0; }
+  dl.fields code { background: rgba(60,30,56,0.05); padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }
+  .basis-tag { font-weight: 700; font-size: 12px; padding: 1px 8px; border-radius: 6px; margin-right: 6px; }
+  .basis-direct { background: var(--green-soft); color: var(--green); }
+  .basis-external { background: var(--blue-soft); color: #35617f; }
+  .basis-reasoned { background: var(--gold-soft); color: #7a5c12; }
+  table { border-collapse: collapse; width: 100%; margin-top: 12px; background: #fff; border-radius: 12px; overflow: hidden; }
+  th, td { text-align: left; padding: 9px 14px; border-bottom: 1px solid rgba(167,194,215,0.25); font-size: 13.5px; vertical-align: top; }
+  th { background: var(--blue-soft); font-size: 11.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); }
+  tr:last-child td { border-bottom: none; }
+  .grounding { background: #fff; border: 1px solid var(--blue-line); border-radius: 14px; padding: 18px 22px; }
+  .grounding h4 { margin: 12px 0 4px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-faint); }
+  .grounding p { margin: 4px 0; font-size: 14px; }
+  svg text { font-family: 'Inter', sans-serif; }
+  figure { margin: 16px 0 6px; }
+  figcaption { font-size: 12px; color: var(--ink-faint); margin-top: 6px; }
+  footer.composition-signal { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--blue-line); font-size: 12px; color: var(--ink-faint); }
+  footer code { font-size: 11.5px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<span class="eyebrow">Ideation Document</span>
+<h1>ALTAR — App-Wide Feature Directions</h1>
+<div class="meta">
+  <span>date: 2026-07-12</span>
+  <span>topic: altar-app-wide-features</span>
+  <span>focus: app-wide — whatever moves ALTAR forward most</span>
+  <span>mode: repo-grounded</span>
+</div>
+
+<div class="stats">
+  <div class="stat"><b>45</b><small>raw ideas generated</small></div>
+  <div class="stat"><b>24</b><small>merged candidates verified</small></div>
+  <div class="stat"><b>7</b><small>survivors ranked</small></div>
+  <div class="stat"><b>5 / 5</b><small>axes covered</small></div>
+</div>
+
+<h2 id="grounding-context">Grounding Context</h2>
+<div class="grounding">
+  <h4>Codebase Context</h4>
+  <p>ALTAR ("DOMINION Spiritual Operating System") is a single-user Next.js 16 + Supabase spiritual-formation app. Modules: DOMINION dashboard (streaks, prayer watches, weekly commitments, Dominion Score), Sunday Pulse (6-phase weekly ritual on 13-week quarters with archive/rollover), Sermon Library (with the new 8-section sermon journal), Divine Downloads (quick capture with categories including <code>action_required</code> and <code>promise</code>), Prayer + Intercession (guided mode, request tracker, list), Declarations (recitation mode with counters), Wisdom Log (testimonies, decisions), Goals (7-goal quarter framework with a "not now" list), Settings (quarters, personal years, dual calendar lens). Server components fetch, client components write directly to Supabase.</p>
+  <p><strong>Recurring pains observed:</strong> missing-migration errors handled by silent try/catch fallbacks (a missing table renders as "no data"); schema split across <code>scripts/</code> and <code>supabase/migrations/</code>; Goals and Prayer History absent from the sidebar; the dashboard performs a render-time <code>weekly_goals</code> upsert.</p>
+  <h4>External Context (web research)</h4>
+  <p>YouVersion streak savers + separate cumulative badges; Lectio 365 tri-daily liturgical rhythm; PrayerMate "personal CRM for prayer" rotation; Echo Prayer's answered-prayer log (its single most-quoted feature); Bible Memory SM-2 spaced repetition; Readwise forgetting-curve resurfacing of your own highlights; 12 Week Year weekly execution scorecard (85% target, week 13 = review + reset); Psalmlog / Soul Guide voice journaling + AI "spiritual seasons" pattern detection framed as reflective mirror, not oracle; the two-app-stack finding — users pair a Bible app with one specialist, which makes ALTAR's all-in-one scope its counter-position.</p>
+  <h4>Unifying thesis from generation</h4>
+  <p>ALTAR captures well but almost never reads back to the user. Three capture surfaces (Downloads, Sermon Journal, Wisdom Log) have zero retrieval surfaces; several schema fields (<code>spaced_summary</code>, <code>became_testimony</code>, <code>action_required</code>) are written but never consumed. Resurfacing and loop-closing dominate the survivor set.</p>
+</div>
+
+<h2 id="topic-axes">Topic Axes</h2>
+<ul class="axes">
+  <li><code>daily-engagement-loop</code> — dashboard, streaks, declarations, prayer watches, daily focus</li>
+  <li><code>weekly-quarterly-rhythm</code> — Pulse, 13-week quarters, goals, scorecards, season review</li>
+  <li><code>capture-to-retention</code> — downloads, sermon journal, wisdom log, resurfacing / spaced review</li>
+  <li><code>prayer-intercession-lifecycle</code> — requests → praying → answered → testimony; schedules, watches</li>
+  <li><code>cross-module-intelligence</code> — insights, season detection, connections between modules</li>
+</ul>
+
+<h2 id="ranked-ideas">Ranked Ideas</h2>
+<div class="jump">
+  <span class="eyebrow">Jump to</span>
+  <ol>
+    <li><a href="#idea1">The Remembrance Engine — spaced resurfacing of your own captures</a></li>
+    <li><a href="#idea2">Close the Capture Loop — action-required inbox + weekly reconciliation</a></li>
+    <li><a href="#idea3">Kill the Backfill — evidence-derived Sunday Pulse</a></li>
+    <li><a href="#idea4">Honest Numbers — a true streak and an execution scorecard</a></li>
+    <li><a href="#idea5">The Answered-Prayer Pipeline — from request to testimony</a></li>
+    <li><a href="#idea6">The Season Letter — a quarterly mirror in your own words</a></li>
+    <li><a href="#idea7">The Schema Doctor — fail loud, name the missing migration</a></li>
+  </ol>
+</div>
+
+<article class="idea" id="idea1">
+  <div class="idea-head"><span class="rank">1</span><h3>The Remembrance Engine — spaced resurfacing of your own captures</h3></div>
+  <div class="chips">
+    <span class="chip axis">capture-to-retention</span>
+    <span class="chip conf-high">Confidence 85%</span>
+    <span class="chip cx">Complexity Medium</span>
+  </div>
+  <dl class="fields">
+    <dt>Description</dt>
+    <dd>A daily "stones of remembrance" card on the dashboard that resurfaces one past item — a Divine Download, a sermon journal <code>spaced_summary</code>, a Wisdom Log line, or a captured promise — on forgetting-curve intervals (1d / 7d / 30d / 90d). One tap responds: <em>still alive</em> (reschedule further out), <em>fulfilled</em> (convert a promise to a testimony), or <em>archive</em>. Promises additionally get an optional maturity horizon (a quarter, a personal-year boundary) and are re-presented when they come due.</dd>
+    <dt>Basis</dt>
+    <dd><span class="basis-tag basis-direct">direct</span>The sermon journal collects a field literally labeled "One-line summary for spaced review" (<code>components/app/sermons/sermon-journal.tsx</code>, line 425) that nothing in the app ever displays again — verified by codebase-wide search. The downloads page fetches reverse-chronological only; <code>category: "promise"</code>, <code>became_testimony</code>, and <code>testimony_note</code> exist on the record with no mechanism that ever moves a promise toward them. <span class="basis-tag basis-external">external</span>Readwise's daily resurfacing of one's own highlights; Bible Memory's SM-2 scheduling (2M users, 30M verses).</dd>
+    <dt>Rationale</dt>
+    <dd>This inverts the capture economics of the whole app: today every capture depreciates the moment it scrolls off; with resurfacing, every capture becomes an appreciating asset — which retroactively raises the value of the Quick Capture FAB, the sermon journal's Revelation section, and the promise category. The schema already promises this feature; the UI is the only missing half.</dd>
+    <dt>Downsides</dt>
+    <dd>Needs a small scheduling table and a review-state model; a badly tuned cadence could make the card feel like nagging. Start with one card per day, never more.</dd>
+  </dl>
+  <figure>
+    <svg viewBox="0 0 720 150" width="100%" role="img" aria-label="Capture today flows to resurfacing intervals and back to a one-tap verdict">
+      <rect x="8" y="52" width="128" height="46" rx="10" fill="#F9D57E" opacity="0.35" stroke="#3C1E38" stroke-width="1"/>
+      <text x="72" y="72" text-anchor="middle" font-size="12" font-weight="600" fill="#3C1E38">Capture</text>
+      <text x="72" y="88" text-anchor="middle" font-size="10" fill="#3C1E38" opacity="0.6">download · journal · promise</text>
+      <line x1="136" y1="75" x2="188" y2="75" stroke="#3C1E38" stroke-width="1.2" marker-end="url(#arr)"/>
+      <g>
+        <rect x="190" y="52" width="66" height="46" rx="10" fill="#A7C2D7" opacity="0.25" stroke="#3C1E38" stroke-width="1"/>
+        <text x="223" y="80" text-anchor="middle" font-size="12" font-weight="600" fill="#3C1E38">+1d</text>
+        <rect x="268" y="52" width="66" height="46" rx="10" fill="#A7C2D7" opacity="0.25" stroke="#3C1E38" stroke-width="1"/>
+        <text x="301" y="80" text-anchor="middle" font-size="12" font-weight="600" fill="#3C1E38">+7d</text>
+        <rect x="346" y="52" width="66" height="46" rx="10" fill="#A7C2D7" opacity="0.25" stroke="#3C1E38" stroke-width="1"/>
+        <text x="379" y="80" text-anchor="middle" font-size="12" font-weight="600" fill="#3C1E38">+30d</text>
+        <rect x="424" y="52" width="66" height="46" rx="10" fill="#A7C2D7" opacity="0.25" stroke="#3C1E38" stroke-width="1"/>
+        <text x="457" y="80" text-anchor="middle" font-size="12" font-weight="600" fill="#3C1E38">+90d</text>
+      </g>
+      <line x1="490" y1="75" x2="542" y2="75" stroke="#3C1E38" stroke-width="1.2" marker-end="url(#arr)"/>
+      <rect x="544" y="40" width="168" height="70" rx="10" fill="#2f7d5d" opacity="0.10" stroke="#2f7d5d" stroke-width="1"/>
+      <text x="628" y="62" text-anchor="middle" font-size="11.5" font-weight="600" fill="#2f7d5d">one-tap verdict</text>
+      <text x="628" y="79" text-anchor="middle" font-size="10.5" fill="#3C1E38">alive → reschedule</text>
+      <text x="628" y="94" text-anchor="middle" font-size="10.5" fill="#3C1E38">fulfilled → testimony</text>
+      <defs><marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#3C1E38"/></marker></defs>
+    </svg>
+    <figcaption>The loop that turns the archive from a graveyard into a flywheel: capture → spaced intervals → verdict → reschedule or graduate.</figcaption>
+  </figure>
+</article>
+
+<article class="idea" id="idea2">
+  <div class="idea-head"><span class="rank">2</span><h3>Close the Capture Loop — action-required inbox + weekly reconciliation</h3></div>
+  <div class="chips">
+    <span class="chip axis">daily-engagement-loop</span>
+    <span class="chip conf-high">Confidence 88%</span>
+    <span class="chip cx">Complexity Low–Medium</span>
+  </div>
+  <dl class="fields">
+    <dt>Description</dt>
+    <dd>Three connected fixes for the same dead end. (1) A dashboard card lists open <code>action_required</code> downloads sorted by age, with visual aging (7+ days = amber) and one-tap resolve or convert. (2) Pulse Phase 5 opens with the week's un-actioned <code>action_required</code> / <code>direction</code> downloads as one-tap priority candidates — promote, defer, or dismiss — instead of three blank text inputs. (3) An accounting-style close: Pulse Phase 6 asks that each open item be scheduled, converted, or consciously written off before the week's books close.</dd>
+    <dt>Basis</dt>
+    <dd><span class="basis-tag basis-direct">direct</span>All four claims verified in code: the dashboard fetches <code>divine_downloads</code> as <code>select("id")</code> count-only; <code>fetchWeekDownloads()</code> in <code>lib/pulse-page-data.ts</code> selects only <code>"id, content, created_at"</code> — dropping the category field before Pulse ever sees it; <code>priorityGoals</code> in <code>phase5-plan.tsx</code> (line 40) is local state whose dropdown selections are silently lost; the Phase 6 close checklist is purely logistical (close tabs, sticky note). <span class="basis-tag basis-external">external</span>Readwise's core insight — capture without scheduled resurfacing is worthless; month-end close from accounting.</dd>
+    <dt>Rationale</dt>
+    <dd>A category literally named "action required" currently produces no action anywhere in the system. The capture pipe, the taxonomy, and the Pulse hub all exist — one join turns a notes app into an obedience tracker, and trust in capture compounds every week the loop visibly works. Cheapest high-impact item on this list.</dd>
+    <dt>Downsides</dt>
+    <dd>The Phase 6 reconciliation gate could feel heavy on busy weeks — make "write off with a reason" a fast, guilt-free path, or the gate will train avoidance of Pulse itself.</dd>
+  </dl>
+</article>
+
+<article class="idea" id="idea3">
+  <div class="idea-head"><span class="rank">3</span><h3>Kill the Backfill — evidence-derived Sunday Pulse</h3></div>
+  <div class="chips">
+    <span class="chip axis">weekly-quarterly-rhythm</span>
+    <span class="chip conf-high">Confidence 82%</span>
+    <span class="chip cx">Complexity Medium</span>
+  </div>
+  <dl class="fields">
+    <dt>Description</dt>
+    <dd>Pulse Phase 2 currently instructs "Assess from data, not memory" — then hands you a manual 7-day backfill grid. Invert it: derive each cell from records the app already holds (prayer session logs, declaration logs, downloads captured, sermon journal touches), render the grid pre-filled, and reserve manual edits for genuine offline exceptions. Human input narrows to the one thing only a human knows: the energy score.</dd>
+    <dt>Basis</dt>
+    <dd><span class="basis-tag basis-direct">direct</span>Verified: <code>components/app/pulse/phase2-measure.tsx</code> line 86 reads "Ensure all data is logged before reviewing. Assess from data, not memory." while the component's mechanism is a manual <code>onBackfillDay</code> grid — and <code>prayerSessionDates</code> (the exact data needed to fill those cells) is already in the component's props, used only to display a count.</dd>
+    <dt>Rationale</dt>
+    <dd>The weekly audit is the hinge of the entire 13-week system; if its inputs are reconstructed memories, every downstream verdict (Phases 3–6, quarter review, and any future scorecard) inherits the distortion. The app's own on-screen motto is contradicted by its own implementation — and the fix is mostly queries over tables that already exist. This is also the prerequisite that makes idea 4's scorecard trustworthy.</dd>
+    <dt>Downsides</dt>
+    <dd>Requires agreeing on what counts as evidence for each checkbox (does one declaration tap count as "declarations done"?). Define the thresholds once, visibly, and let manual override remain for edge cases.</dd>
+  </dl>
+</article>
+
+<article class="idea" id="idea4">
+  <div class="idea-head"><span class="rank">4</span><h3>Honest Numbers — a true streak and an execution scorecard</h3></div>
+  <div class="chips">
+    <span class="chip axis">daily-engagement-loop</span>
+    <span class="chip conf-high">Confidence 85%</span>
+    <span class="chip cx">Complexity Medium</span>
+  </div>
+  <dl class="fields">
+    <dt>Description</dt>
+    <dd>Fix the two headline metrics that are currently misleading. (1) The dashboard "prayer streak" becomes a true consecutive-day computation over full history, with YouVersion-style grace days (one auto-applied saver per week) and a separate cumulative-days count that only ever grows. (2) The Dominion Score — currently an arbitrary blend of the broken streak and sermon count — becomes a 12 Week Year execution score: percent of the week's own <code>weekly_commitments</code> kept, with the 85% line as the "great execution" marker, displayed daily and rendered as 13 tiles per quarter.</dd>
+    <dt>Basis</dt>
+    <dd><span class="basis-tag basis-direct">direct</span>Verified: the streak is <code>devotionsRes.data?.filter((d) =&gt; d.prayer_complete).length</code> over a query bounded <code>.gte("date", startOfWeekStr)</code> (<code>app/app/dashboard/page.tsx</code> line 172) — a non-consecutive count capped at 7 that silently resets every Monday. The Dominion Score formula (line 175) is <code>Math.min(10, Math.round((prayerStreak/7)*5 + (sermonsThisWeek/5)*5))</code>, ignoring the weekly commitments fetched on the same page. <span class="basis-tag basis-external">external</span>YouVersion streak savers + cumulative badges; 12 Week Year's weekly scorecard with 85% leading-indicator target.</dd>
+    <dt>Rationale</dt>
+    <dd>The two most prominent numbers on the daily command center are mathematically wrong or arbitrary. A score you can't influence through your stated commitments trains you to ignore it; a streak that punishes a logging omission (the most common failure for a solo user) is pure demotivation with zero information. Grounding both numbers in the user's own covenant makes them the honest leading indicators the 13-week system is supposed to run on.</dd>
+    <dt>Downsides</dt>
+    <dd>Persisting weekly scores needs a small table; changing the headline metric changes what the app "rewards," so decide deliberately what belongs in the score.</dd>
+  </dl>
+</article>
+
+<article class="idea" id="idea5">
+  <div class="idea-head"><span class="rank">5</span><h3>The Answered-Prayer Pipeline — from request to testimony</h3></div>
+  <div class="chips">
+    <span class="chip axis">prayer-intercession-lifecycle</span>
+    <span class="chip conf-high">Confidence 80%</span>
+    <span class="chip cx">Complexity Medium</span>
+  </div>
+  <dl class="fields">
+    <dt>Description</dt>
+    <dd>Give prayer requests CRM-style stages (requested → praying → answered → testimonied) with last-prayed recency. Marking a request <em>answered</em> auto-drafts a Wisdom Log testimony pre-filled with the original request, dates asked and answered, and elapsed time — edit and confirm rather than re-type in another module. On the intake side, a computed daily queue deals the 2–3 most-neglected entries into the matching prayer watch, PrayerMate-style, so nobody silently falls off the list; praying from guided mode updates recency automatically.</dd>
+    <dt>Basis</dt>
+    <dd><span class="basis-tag basis-external">external</span>Echo Prayer's answered-prayer log is its single most-quoted feature; PrayerMate's category-rotation scheduling is the proven "personal CRM for prayer" mechanic. <span class="basis-tag basis-direct">direct</span>The verifier confirmed both ends exist in-app (answered-prayer flow with <code>answer_notes</code>; <code>wisdom_entries</code>; <code>became_testimony</code> on downloads) with no pipe between them — and found <code>last_prayed_at</code> already exists on the prayer-request table, updated by <code>prayer-mode-flow.tsx</code>, which strengthens feasibility.</dd>
+    <dt>Rationale</dt>
+    <dd>Answered prayers are the one data type whose value strictly grows with time — each becomes evidence for future intercession. The moment of marking "answered" is the highest-motivation instant to capture a testimony, and the system already holds every field. This also unifies three modules (<code>/app/prayers</code>, <code>/app/prayer</code>, <code>/app/journal</code>) that currently don't feed each other — connective tissue no two-app stack can replicate.</dd>
+    <dt>Downsides</dt>
+    <dd>Stage modeling needs a small migration on the requests table; the dealt-hand queue should start as a suggestion, not a lock, to preserve spontaneity in prayer.</dd>
+  </dl>
+  <figure>
+    <svg viewBox="0 0 720 120" width="100%" role="img" aria-label="Prayer request pipeline stages flowing into testimony and resurfacing">
+      <rect x="8" y="38" width="118" height="44" rx="10" fill="#A7C2D7" opacity="0.25" stroke="#3C1E38"/>
+      <text x="67" y="64" text-anchor="middle" font-size="12" font-weight="600" fill="#3C1E38">requested</text>
+      <line x1="126" y1="60" x2="168" y2="60" stroke="#3C1E38" stroke-width="1.2" marker-end="url(#arr2)"/>
+      <rect x="170" y="38" width="118" height="44" rx="10" fill="#A7C2D7" opacity="0.25" stroke="#3C1E38"/>
+      <text x="229" y="58" text-anchor="middle" font-size="12" font-weight="600" fill="#3C1E38">praying</text>
+      <text x="229" y="74" text-anchor="middle" font-size="9.5" fill="#3C1E38" opacity="0.6">recency-dealt hand</text>
+      <line x1="288" y1="60" x2="330" y2="60" stroke="#3C1E38" stroke-width="1.2" marker-end="url(#arr2)"/>
+      <rect x="332" y="38" width="118" height="44" rx="10" fill="#F9D57E" opacity="0.4" stroke="#3C1E38"/>
+      <text x="391" y="64" text-anchor="middle" font-size="12" font-weight="600" fill="#3C1E38">answered</text>
+      <line x1="450" y1="60" x2="492" y2="60" stroke="#3C1E38" stroke-width="1.2" marker-end="url(#arr2)"/>
+      <rect x="494" y="38" width="130" height="44" rx="10" fill="#2f7d5d" opacity="0.12" stroke="#2f7d5d"/>
+      <text x="559" y="58" text-anchor="middle" font-size="12" font-weight="600" fill="#2f7d5d">testimonied</text>
+      <text x="559" y="74" text-anchor="middle" font-size="9.5" fill="#3C1E38" opacity="0.6">auto-drafted entry</text>
+      <path d="M 624 60 C 690 60 690 108 391 108 C 240 108 180 100 132 88" stroke="#2f7d5d" stroke-width="1.1" fill="none" stroke-dasharray="4 3" marker-end="url(#arr3)"/>
+      <text x="391" y="103" text-anchor="middle" font-size="10" fill="#2f7d5d" style="paint-order: stroke fill" stroke="#FDFCF9" stroke-width="3">resurfaces as faith-evidence for new requests</text>
+      <defs>
+        <marker id="arr2" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#3C1E38"/></marker>
+        <marker id="arr3" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#2f7d5d"/></marker>
+      </defs>
+    </svg>
+    <figcaption>The lifecycle no standalone prayer app closes: answered prayers feed back as evidence for the next request.</figcaption>
+  </figure>
+</article>
+
+<article class="idea" id="idea6">
+  <div class="idea-head"><span class="rank">6</span><h3>The Season Letter — a quarterly mirror in your own words</h3></div>
+  <div class="chips">
+    <span class="chip axis">cross-module-intelligence</span>
+    <span class="chip conf-med">Confidence 70%</span>
+    <span class="chip cx">Complexity High</span>
+  </div>
+  <dl class="fields">
+    <dt>Description</dt>
+    <dd>At week 13 (and optionally mid-quarter), generate a reflective summary of the quarter built strictly from the user's own words across modules — Pulse notes, sermon Burden/Revelation sections, wisdom entries, downloads: recurring themes, the emotional arc, promises captured versus promises acted on, a proposed "spiritual season" label to confirm or edit into the quarter archive. Framed explicitly as a mirror ("here is what you wrote"), never an oracle ("here is what God is saying"), with every claim linking back to its source entry.</dd>
+    <dt>Basis</dt>
+    <dd><span class="basis-tag basis-direct">direct</span>Verified: <code>fetchLastWeekTimeAnalysis()</code> is <code>limit(1).maybeSingle()</code> — only the single most recent reflection is ever read again; 13 weeks of written self-analysis per quarter currently evaporates. <span class="basis-tag basis-external">external</span>Psalmlog and Soul Guide's "spiritual seasons" pattern detection is the 2025–26 frontier of the category, with "reflective mirror, not oracle" as the established design guardrail.</dd>
+    <dt>Rationale</dt>
+    <dd>This is the payoff of the all-in-one bet: no specialist app holds cross-module text to mine, so this is the one feature on this list no commercial product can offer you. Its value grows fastest with data — modest in quarter one, startling after four. It also gives quarter close an emotional climax the rollover flow currently lacks, and confirmed season labels become structured data for every future retrospective.</dd>
+    <dt>Downsides</dt>
+    <dd>Highest complexity here (an LLM pass over personal text, prompt design, a review/confirm UI). Sequence it after the cheaper loops (ideas 1–4) are generating cleaner data to mine.</dd>
+  </dl>
+</article>
+
+<article class="idea" id="idea7">
+  <div class="idea-head"><span class="rank">7</span><h3>The Schema Doctor — fail loud, name the missing migration</h3></div>
+  <div class="chips">
+    <span class="chip axis">cross-module-intelligence</span>
+    <span class="chip conf-high">Confidence 90%</span>
+    <span class="chip cx">Complexity Low</span>
+  </div>
+  <dl class="fields">
+    <dt>Description</dt>
+    <dd>A settings-page (or startup) probe that checks the live Supabase schema against a declared manifest of expected tables and columns, and renders a "System Integrity" banner naming exactly what is missing and which file in <code>supabase/migrations/</code> creates it — with copyable SQL. Replaces the app-wide pattern of silent catch-return-empty, where a missing table renders as "no data," indistinguishable from an empty life.</dd>
+    <dt>Basis</dt>
+    <dd><span class="basis-tag basis-direct">direct</span>All three citations verified: <code>app/app/dashboard/page.tsx</code> lines 152–153 wrap ten queries in one try with <code>catch {'{'} // Tables may not exist; dashboard still renders with zeros {'}'}</code>; <code>new-quarter-flow.tsx</code> lines 90–97 regex-match the error message (<code>/archived_at/i.test(deErr.message)</code>) to hand-patch one column's drift; <code>app/app/journal/page.tsx</code> line 31 documents its own drift in a comment naming the exact migration file to run.</dd>
+    <dt>Rationale</dt>
+    <dd>Missing-migration errors are this project's single most recurring real-world pain (they have surfaced repeatedly during development), and the app is architected to hide them — turning two-minute fixes into confusing debugging sessions. Per-column regex patches cannot scale. One diagnostic surface replaces an unbounded family of future fallback hacks, and every feature above this line adds tables that would otherwise add new silent failure modes.</dd>
+    <dt>Downsides</dt>
+    <dd>The manifest must be kept in sync with migrations — generate it from the migrations folder rather than maintaining it by hand.</dd>
+  </dl>
+</article>
+
+<h2 id="rejection-summary">Rejection Summary</h2>
+<table>
+  <thead><tr><th style="width:30px">#</th><th style="width:230px">Idea</th><th>Reason Rejected</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Event spine (<code>altar_events</code> table)</td><td>Basis partly misstated (only 4 of 14 fetchers have their own try/catch), and an event-sourcing rewrite is disproportionate for a single-user app — revisit only if insight features multiply.</td></tr>
+    <tr><td>2</td><td>Voice capture on the FAB</td><td>Sound and verified (FAB is typed-only), but a single input-mode change rather than a direction; strong candidate to fold into the Remembrance/capture work later.</td></tr>
+    <tr><td>3</td><td>Watch-aware entry + one-tap liturgy deck</td><td>Verified pattern (recitation-mode UI) and strong prior art (Lectio 365), but it is a whole-app UX overhaul that competes with Honest Numbers for the daily loop — better as a ce-brainstorm variant after ideas 2–4 land.</td></tr>
+    <tr><td>4</td><td>Offline sanctuary (IndexedDB write queue)</td><td>Motivating severity overstated — the offline guard fires a visible toast, not a silent discard; the gap is real but belongs with future PWA work.</td></tr>
+    <tr><td>5</td><td>Pulse draft autosave</td><td>Sound tactical fix (the total-loss error message is real at <code>pulse-client.tsx</code> line 868) — just do it; it does not need ideation-level discussion.</td></tr>
+    <tr><td>6</td><td>Pulse as single writer of weekly goals</td><td>Verified architectural defect (render-time upsert), but an engineering task rather than a feature direction — fold into the implementation of ideas 3–4.</td></tr>
+    <tr><td>7</td><td>Quarter rollover auto-draft + prestige artifacts</td><td>Contains a confidently false claim (the +90-day default is exactly 13 weeks because the end date is inclusive); the auto-draft half may resurface once the scorecard exists.</td></tr>
+    <tr><td>8</td><td>Grid-style goal dispatch (base load vs dispatchable)</td><td>Interesting reconciliation of the 7-goal framework with the 12 Week Year's ≤3 rule, but it is a philosophy decision about the goal system, not clearly requested — park until the builder wants to revisit goal load.</td></tr>
+    <tr><td>9</td><td>Cold-case prayer review</td><td>The proposed evidence join doesn't exist as described — <code>life_areas</code> is not on <code>divine_downloads</code> or <code>prayers</code>; the concept may return after the pipeline (idea 5) creates the linkage.</td></tr>
+    <tr><td>10</td><td>Spiritual early-warning score</td><td>Hospital NEWS/MEWS is a distant metaphor rather than analogous prior art; composite "spiritual health" scoring would draw hard pushback and has no direct code basis.</td></tr>
+    <tr><td>11</td><td>Audio Pulse briefing</td><td>Stacked on an unbuilt prerequisite (idea 3's auto-assembled evidence) plus a TTS pipeline — high complexity for a marginal use case today.</td></tr>
+    <tr><td>12</td><td>SM-2 active-recall declarations</td><td>Sound and verified, but duplicates the spaced-repetition direction of the Remembrance Engine — fold in as a later extension.</td></tr>
+    <tr><td>13</td><td>Calendar loop close (.ics export + prefilled hours)</td><td>Both quotes verified ("prompt only" checkboxes; estimate-from-memory), but value is narrow and depends on an external calendar workflow.</td></tr>
+    <tr><td>14</td><td>Personal-year annual review</td><td>Sound, but it consumes artifacts that don't exist yet (scorecards, season labels) — sequence after ideas 4 and 6.</td></tr>
+    <tr><td>15</td><td>Blameless streak post-mortems</td><td>Genuinely novel (nobody in the category harvests misses), but small standalone value — natural extension of Honest Numbers once grace days exist.</td></tr>
+    <tr><td>16</td><td>Evening consolidation replay</td><td>Reasoned basis only; overlaps heavily with the Remembrance Engine's daily card — merge candidate rather than separate survivor.</td></tr>
+  </tbody>
+</table>
+
+<footer class="composition-signal">Composed 2026-07-12 by ce-ideate (repo-grounded, app-wide focus) · 5 ideation frames + fresh-context basis verification over <code>v0-altar-main</code></footer>
+
+</div>
+</body>
+</html>
