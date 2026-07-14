@@ -1,32 +1,51 @@
 "use client"
 
+import { useId } from "react"
 import Link from "next/link"
 
-// Main Logo with Icon and Text
-export function AltarLogo({ className = "w-8 h-8" }: { className?: string }) {
+/** Brand mark — hollow silver→gold drop matching the uploaded ALTAR logo. */
+export function AltarMark({ className = "w-8 h-8" }: { className?: string }) {
+  const uid = useId().replace(/:/g, "")
+  const gradId = `altarMarkGrad-${uid}`
   return (
-    <div className={`${className} flex items-center`}>
-      <div className="w-8 h-8 mr-3">
-        <svg viewBox="0 0 32 32" className="w-full h-full">
-          <defs>
-            <linearGradient id="mainLogoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#A7C2D7" />
-              <stop offset="100%" stopColor="#F9D57E" />
-            </linearGradient>
-          </defs>
-          <path
-            d="M16 2 C20 6, 24 10, 24 16 C24 22, 20 26, 16 26 C12 26, 8 22, 8 16 C8 10, 12 6, 16 2 Z"
-            fill="url(#mainLogoGradient)"
-            opacity="0.9"
-          />
-          <path
-            d="M16 6 C18 8, 20 10, 20 14 C20 18, 18 20, 16 20 C14 20, 12 18, 12 14 C12 10, 14 8, 16 6 Z"
-            fill="#FFFFFF"
-            opacity="0.8"
-          />
-          <circle cx="16" cy="14" r="2" fill="url(#mainLogoGradient)" />
-        </svg>
-      </div>
+    <svg
+      viewBox="0 0 128 128"
+      className={className}
+      role="img"
+      aria-label="ALTAR"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <defs>
+        <linearGradient id={gradId} x1="18%" y1="8%" x2="82%" y2="96%">
+          <stop offset="0%" stopColor="#C5CCD4" />
+          <stop offset="42%" stopColor="#B8A37A" />
+          <stop offset="100%" stopColor="#C8963A" />
+        </linearGradient>
+      </defs>
+      <path
+        fill="none"
+        stroke={`url(#${gradId})`}
+        strokeWidth="11"
+        strokeLinejoin="round"
+        d="M64 14 C78 34, 94 52, 94 74 C94 94, 81 108, 64 108 C47 108, 34 94, 34 74 C34 52, 50 34, 64 14 Z"
+      />
+      <path
+        fill="none"
+        stroke={`url(#${gradId})`}
+        strokeWidth="8"
+        strokeLinejoin="round"
+        d="M64 36 C73 48, 82 60, 82 74 C82 88, 74 97, 64 97 C54 97, 46 88, 46 74 C46 60, 55 48, 64 36 Z"
+      />
+      <circle cx="64" cy="78" r="9" fill={`url(#${gradId})`} />
+    </svg>
+  )
+}
+
+// Main Logo with Icon and Text
+export function AltarLogo({ className = "" }: { className?: string }) {
+  return (
+    <div className={`flex items-center ${className}`}>
+      <AltarMark className="mr-3 h-8 w-8 flex-shrink-0" />
       <span className="font-playfair text-2xl font-bold tracking-tight bg-gradient-to-r from-[#A7C2D7] to-[#F9D57E] bg-clip-text text-transparent">
         ALTAR
       </span>
@@ -34,30 +53,12 @@ export function AltarLogo({ className = "w-8 h-8" }: { className?: string }) {
   )
 }
 
-// Icon Only
+// Icon Only — also accepts a PNG fallback via className sizing
 export function AltarIcon({ className = "w-8 h-8" }: { className?: string }) {
   return (
-    <div className={className}>
-      <svg viewBox="0 0 32 32" className="w-full h-full">
-        <defs>
-          <linearGradient id="iconGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#A7C2D7" />
-            <stop offset="100%" stopColor="#F9D57E" />
-          </linearGradient>
-        </defs>
-        <path
-          d="M16 2 C20 6, 24 10, 24 16 C24 22, 20 26, 16 26 C12 26, 8 22, 8 16 C8 10, 12 6, 16 2 Z"
-          fill="url(#iconGradient)"
-          opacity="0.9"
-        />
-        <path
-          d="M16 6 C18 8, 20 10, 20 14 C20 18, 18 20, 16 20 C14 20, 12 18, 12 14 C12 10, 14 8, 16 6 Z"
-          fill="#FFFFFF"
-          opacity="0.8"
-        />
-        <circle cx="16" cy="14" r="2" fill="url(#iconGradient)" />
-      </svg>
-    </div>
+    <span className={`inline-flex items-center justify-center ${className}`}>
+      <AltarMark className="h-full w-full" />
+    </span>
   )
 }
 

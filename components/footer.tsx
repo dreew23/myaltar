@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { Sparkles } from "lucide-react"
+import { AltarLogo } from "@/components/logo-variations"
 
 export default function Footer() {
   const [isVisible, setIsVisible] = useState(false)
@@ -78,31 +79,7 @@ export default function Footer() {
                 onMouseEnter={() => setHoverQuote(true)}
                 onMouseLeave={() => setHoverQuote(false)}
               >
-                {/* Logo Icon */}
-                <div className="w-8 h-8 mr-3">
-                  <svg viewBox="0 0 32 32" className="w-full h-full">
-                    <defs>
-                      <linearGradient id="footerLogoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#A7C2D7" />
-                        <stop offset="100%" stopColor="#F9D57E" />
-                      </linearGradient>
-                    </defs>
-                    <path
-                      d="M16 2 C20 6, 24 10, 24 16 C24 22, 20 26, 16 26 C12 26, 8 22, 8 16 C8 10, 12 6, 16 2 Z"
-                      fill="url(#footerLogoGradient)"
-                      opacity="0.9"
-                    />
-                    <path
-                      d="M16 6 C18 8, 20 10, 20 14 C20 18, 18 20, 16 20 C14 20, 12 18, 12 14 C12 10, 14 8, 16 6 Z"
-                      fill="#FFFFFF"
-                      opacity="0.8"
-                    />
-                    <circle cx="16" cy="14" r="2" fill="url(#footerLogoGradient)" />
-                  </svg>
-                </div>
-                <span className="font-playfair text-2xl md:text-3xl font-bold text-[#3C1E38] tracking-tight relative z-10 transition-colors duration-300">
-                  ALTAR
-                </span>
+                <AltarLogo className="relative z-10" />
                 <span className="absolute bottom-0 left-0 w-full h-px bg-[#A7C2D7] transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500 ease-out" />
               </Link>
             </div>
