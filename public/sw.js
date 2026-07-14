@@ -1,10 +1,10 @@
-/* Bump CACHE_NAME when you change caching rules so old caches are dropped. */
-const CACHE_NAME = 'altar-v6'
-const STATIC_SHELL = ['/manifest.json']
+/* Bump CACHE_NAME when you change caching rules / icons so old caches are dropped. */
+const CACHE_NAME = 'altar-v7'
+const STATIC_SHELL = ['/manifest.json?v=7']
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_SHELL))
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_SHELL).catch(() => undefined))
   )
   self.skipWaiting()
 })
@@ -44,19 +44,23 @@ self.addEventListener('fetch', (event) => {
 
   if (url.origin !== self.location.origin) return
 
+  // Icons + manifest: network-first so logo updates aren't stuck behind a stale SW cache.
   if (url.pathname.startsWith('/icons/') || url.pathname === '/manifest.json') {
     event.respondWith(
-      caches.match(event.request).then(
-        (cached) =>
-          cached ||
-          fetch(event.request).then((response) => {
+      (async () => {
+        try {
+          const response = await fetch(event.request)
+          if (response.ok) {
             const clone = response.clone()
-            if (response.ok) {
-              caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone))
-            }
-            return response
-          })
-      )
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone))
+          }
+          return response
+        } catch {
+          const cached = await caches.match(event.request)
+          if (cached) return cached
+          return new Response(null, { status: 503, statusText: 'Network unavailable' })
+        }
+      })()
     )
     return
   }

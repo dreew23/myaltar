@@ -68,13 +68,13 @@ export const metadata: Metadata = {
     google: "your-google-verification-code",
   },
   generator: "v0.app",
-  manifest: "/manifest.json",
+  manifest: "/manifest.json?v=7",
   icons: {
     icon: [
-      { url: "/icons/icon.svg", type: "image/svg+xml" },
-      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon.svg?v=7", type: "image/svg+xml" },
+      { url: "/icons/icon-192.png?v=7", sizes: "192x192", type: "image/png" },
     ],
-    apple: "/icons/icon-192.png",
+    apple: "/icons/apple-touch-icon.png?v=7",
   },
   appleWebApp: {
     capable: true,
@@ -91,7 +91,8 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${ebGaramond.variable}`}>
       <head>
-        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=7" />
+        <link rel="manifest" href="/manifest.json?v=7" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className="min-h-screen bg-gradient-to-br from-cream via-white to-sage/10">
